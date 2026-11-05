@@ -6,7 +6,7 @@
 - 技術：Vite + React + TypeScript。所有規則、機器人與分析都在瀏覽器執行，沒有後端，
   建置結果是純靜態檔案，可以免費部署到 Vercel / Netlify / Cloudflare Pages / GitHub Pages。
 
-線上版：https://ethan1407.github.io/Mahjong/（推送到 main 後由 GitHub Actions 自動部署）
+部署：Vercel（連結 GitHub 倉庫，推送到 main 後自動部署）。
 
 ## 開發
 
