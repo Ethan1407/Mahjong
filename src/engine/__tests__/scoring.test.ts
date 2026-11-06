@@ -22,14 +22,14 @@ const names = (r: ReturnType<typeof scoreHand>) => r.items.map((i) => i.name)
 
 describe('台數', () => {
   it('平胡 + 門清', () => {
-    const r = scoreHand(ctx({ concealed: '123m 456m 789m 234p 678s 55p', win: '8s' }))
+    const r = scoreHand(ctx({ concealed: '123m 456m 678p 234p 678s 55p', win: '8s' }))
     expect(r.valid).toBe(true)
     expect(names(r).sort()).toEqual(['平胡', '門清'].sort())
     expect(r.tai).toBe(3)
   })
 
   it('門清自摸取代門清與自摸，自摸不算平胡', () => {
-    const r = scoreHand(ctx({ concealed: '123m 456m 789m 234p 678s 55p', win: '8s', selfDrawn: true }))
+    const r = scoreHand(ctx({ concealed: '123m 456m 678p 234p 678s 55p', win: '8s', selfDrawn: true }))
     expect(names(r)).toEqual(['門清自摸'])
     expect(r.tai).toBe(3)
   })
@@ -75,7 +75,7 @@ describe('台數', () => {
   })
 
   it('正花與花槓', () => {
-    const base = { concealed: '123m 456m 789m 234p 678s 55p', win: '8s', seatWind: 1 }
+    const base = { concealed: '123m 456m 678p 234p 678s 55p', win: '8s', seatWind: 1 }
     const r1 = scoreHand(ctx({ ...base, flowers: parseTiles('1f 2f 6f') }))
     expect(names(r1).filter((n) => n.includes('花'))).toEqual(['正花（夏）', '正花（蘭）'])
     const r2 = scoreHand(ctx({ ...base, flowers: parseTiles('1234f 6f') }))
@@ -86,6 +86,16 @@ describe('台數', () => {
     const r = scoreHand(ctx({ concealed: '1122m 3344p 5566s 77z 111z', win: '7z' }))
     expect(r.pattern).toBe('liguligu')
     expect(names(r).sort()).toEqual(['嚦咕嚦咕', '獨聽'].sort())
+  })
+
+  it('一條龍：採用國際麻將的 16 台，可關閉', () => {
+    const hand = { concealed: '123456789m 345p 678s 99p', win: '9p' }
+    expect(scoreHand(ctx(hand)).items).toContainEqual({ name: '一條龍', tai: 16 })
+    const off = scoreHand(ctx(hand), { base: 100, perTai: 20, allowLiguLigu: true, straightTai: 0 })
+    expect(names(off)).not.toContain('一條龍')
+    // 吃出來的順子也算
+    const melds: Meld[] = [{ type: 'chow', tiles: parseTiles('123s'), fromSeat: 3 }]
+    expect(names(scoreHand(ctx({ concealed: '456s 789s 111m 234p 55z', win: '5z', melds })))).toContain('一條龍')
   })
 
   it('不是胡牌就無效', () => {

@@ -31,6 +31,8 @@ export interface RiverTile {
   tile: Tile
   /** 被別人吃、碰、槓、胡走了。 */
   claimed: boolean
+  /** 被誰拿走、怎麼拿走的（claimed 為 true 時才有）。 */
+  claimedBy?: { seat: Seat; how: 'chow' | 'pung' | 'minkan' | 'ron' }
 }
 
 export interface PlayerState {
@@ -88,6 +90,8 @@ export interface RoundConfig {
 export interface RoundState {
   config: RoundConfig
   rules: RuleConfig
+  /** 這一局台數加倍了（每台的錢 ×factor，所有人都一樣）。 */
+  doubled?: { by: Seat; fromPerTai: number; factor: number }
   wall: Wall
   players: PlayerState[]
   turn: Seat

@@ -96,6 +96,31 @@ export function cloneRound(s: RoundState): RoundState {
   }
 }
 
+// ─────────────────────────── 台數加倍 ───────────────────────────
+
+/** 前兩圈（四家都還沒打滿兩張牌）以內可以加倍。 */
+export const DOUBLE_DEADLINE_DISCARDS = 8
+
+/** 這一局還能不能把台數加倍（每局只能加倍一次）。 */
+export function canDouble(s: RoundState): boolean {
+  if (s.doubled || s.phase === 'ended') return false
+  const discards = s.players.reduce((n, p) => n + p.discards, 0)
+  return discards < DOUBLE_DEADLINE_DISCARDS
+}
+
+/** 可以選的倍數。 */
+export const DOUBLE_FACTORS = [2, 3, 4, 5] as const
+
+/** 把這一局每台的錢乘上 factor 倍（2–5 倍，所有玩家都適用）。 */
+export function doubleStakes(state: RoundState, by: Seat, factor = 2): RoundState {
+  if (!canDouble(state)) throw new Error('現在不能加倍')
+  if (!Number.isInteger(factor) || factor < 2 || factor > 5) throw new Error(`倍數只能是 2 到 5：${factor}`)
+  const s = cloneRound(state)
+  s.doubled = { by, fromPerTai: s.rules.perTai, factor }
+  s.rules = { ...s.rules, perTai: s.rules.perTai * factor }
+  return s
+}
+
 // ─────────────────────────── 合法動作 ───────────────────────────
 
 const winOpts = (s: RoundState) => ({ allowLiguLigu: s.rules.allowLiguLigu })
@@ -155,10 +180,43 @@ export function legalActions(s: RoundState, seat: Seat): Action[] {
     return out
   }
 
-  // claim / robKong
+  // claim / robKong：依優先順序輪流問（能胡的先決定，再來碰槓，最後才是吃）
   const pending = s.pending!
-  if (pending.options[seat].length === 0 || pending.responses[seat] !== null) return []
+  if (!seatsOnDeck(pending).includes(seat)) return []
   return [...pending.options[seat], { type: 'pass', seat }]
+}
+
+/** 動作的優先順序：胡 0、碰／槓 1、吃 2（越小越優先）。 */
+const claimTier = (a: Action) => (a.type === 'ron' ? 0 : a.type === 'chow' ? 2 : 1)
+
+/**
+ * 比較兩個宣告誰優先：先比動作（胡 > 碰槓 > 吃），同一種動作時打牌者之後最近的一家優先（截胡）。
+ * 回傳越小越優先。
+ */
+function claimKey(pending: PendingClaim, seat: Seat, tier: number): number {
+  return tier * 4 + ((seat - pending.from + 4) % 4)
+}
+
+/** 還沒決定、而且他的宣告還有可能勝過目前最好宣告的座位。 */
+function liveSeats(pending: PendingClaim): Seat[] {
+  let best = Infinity
+  pending.responses.forEach((r, seat) => {
+    if (r && r.type !== 'pass') best = Math.min(best, claimKey(pending, seat, claimTier(r)))
+  })
+  return [0, 1, 2, 3].filter((seat) => {
+    if (pending.responses[seat] !== null || pending.options[seat].length === 0) return false
+    const tier = Math.min(...pending.options[seat].map(claimTier))
+    return claimKey(pending, seat, tier) < best
+  })
+}
+
+/** 現在輪到誰決定：還有機會的座位中，最高優先等級（胡 > 碰槓 > 吃）的那幾家同時決定。 */
+function seatsOnDeck(pending: PendingClaim): Seat[] {
+  const live = liveSeats(pending)
+  if (live.length === 0) return []
+  const tierOf = (seat: Seat) => Math.min(...pending.options[seat].map(claimTier))
+  const top = Math.min(...live.map(tierOf))
+  return live.filter((seat) => tierOf(seat) === top)
 }
 
 export function sameAction(a: Action, b: Action): boolean {
@@ -202,7 +260,7 @@ export function applyAction(state: RoundState, action: Action): RoundState {
       break
     case 'ankan': {
       removeTiles(p.hand, [action.tile, action.tile, action.tile, action.tile])
-      p.melds.push({ type: 'ankan', tiles: [action.tile, action.tile, action.tile, action.tile] })
+      p.melds.push({ type: 'ankan', tiles: [action.tile, action.tile, action.tile, action.tile], riverIndex: p.river.length })
       s.anyCalls = true
       s.log.push({ type: 'ankan', seat: action.seat, tile: action.tile })
       drawFor(s, action.seat, true)
@@ -214,8 +272,8 @@ export function applyAction(state: RoundState, action: Action): RoundState {
     default: {
       // 回應別人的牌（ron / pung / minkan / chow / pass）
       s.pending!.responses[action.seat] = action
-      const waiting = s.pending!.options.some((o, seat) => o.length > 0 && s.pending!.responses[seat] === null)
-      if (!waiting) resolveClaims(s)
+      // 剩下的人不可能勝過目前的宣告時，就不用再問了
+      if (liveSeats(s.pending!).length === 0) resolveClaims(s)
     }
   }
   return s
@@ -322,7 +380,9 @@ function resolveClaims(s: RoundState) {
     if (pending.kind === 'kakan') {
       removeTiles(loser.hand, [pending.tile])
     } else {
-      loser.river[loser.river.length - 1].claimed = true
+      const r = loser.river[loser.river.length - 1]
+      r.claimed = true
+      r.claimedBy = { seat: ronSeat, how: 'ron' }
     }
     s.players[ronSeat].hand.push(pending.tile)
     s.players[ronSeat].hand.sort((a, b) => a - b)
@@ -345,7 +405,9 @@ function resolveClaims(s: RoundState) {
   const p = s.players[seat]
   const tile = pending.tile
   const from = s.players[pending.from]
-  from.river[from.river.length - 1].claimed = true
+  const taken = from.river[from.river.length - 1]
+  taken.claimed = true
+  taken.claimedBy = { seat, how: claim.type as 'chow' | 'pung' | 'minkan' }
   s.anyCalls = true
   s.pending = null
   s.turn = seat
@@ -365,6 +427,7 @@ function resolveClaims(s: RoundState) {
     removeTiles(p.hand, [tile, tile, tile])
     meld = { type: 'minkan', tiles: [tile, tile, tile, tile], fromSeat: pending.from }
   }
+  meld.riverIndex = p.river.length
   p.melds.push(meld)
   s.log.push({ type: claim.type as 'chow' | 'pung' | 'minkan', seat, from: pending.from, tiles: meld.tiles })
   if (claim.type === 'minkan') drawFor(s, seat, true)

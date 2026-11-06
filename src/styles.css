@@ -220,3 +220,398 @@ button:focus-visible {
     flex: 1;
   }
 }
+
+/* ─────────────────────────── 輔助功能開關 ─────────────────────────── */
+.assist-panel {
+  padding: 4px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.assist-list {
+  display: flex;
+  flex-direction: column;
+}
+.assist-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+}
+.assist-item + .assist-item {
+  border-top: 1px solid var(--border);
+}
+.assist-name {
+  font-weight: 700;
+}
+.assist-desc,
+.assist-note {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.assist-note {
+  color: var(--accent);
+}
+.switch {
+  flex-shrink: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 64px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--badge-bg);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  transition: background-color 0.15s;
+}
+.switch-knob {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: translateY(-50%);
+  transition: left 0.15s;
+}
+.switch.on {
+  justify-content: flex-start;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.switch.on .switch-knob {
+  left: calc(100% - 25px);
+}
+
+/* 共用說明框（TipLayer）：位置由程式計算，保持在畫面內 */
+.tip-layer {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1b211e;
+  color: #f4f1ea;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-line;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* 錢包與賭注 */
+.option-grid.stakes {
+  /* 六個選項排成一行；畫面窄時才換行 */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .option-grid.stakes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .option-grid.stakes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.wallet-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.wallet-label {
+  color: var(--muted);
+  margin-right: 10px;
+}
+.wallet-balance {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-box .pos {
+  color: #2f8f5b;
+}
+.wallet-box .neg {
+  color: #c4473d;
+}
+.wallet-records summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.wallet-records ul {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.wallet-records li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.wallet-reset {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: #c4473d;
+  cursor: pointer;
+}
+
+/* 個人中心 */
+.setup-header {
+  position: relative;
+}
+.profile-link,
+.profile-back {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.profile-back {
+  margin-bottom: 12px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.stat-value {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+.stat-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.stat-best strong {
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.stat-table th,
+.stat-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.stat-table th:first-child,
+.stat-table td:first-child {
+  text-align: left;
+}
+.stat-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.wallet-diff {
+  margin-left: 8px;
+  color: var(--muted);
+}
+.wallet-box .wallet-diff.pos {
+  color: #2f8f5b;
+}
+.wallet-box .wallet-diff.neg {
+  color: #c4473d;
+}
+.custom-stake {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.custom-stake label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.custom-stake input {
+  width: 110px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg, transparent);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.custom-stake .section-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* 籌碼變化圖 */
+.chip-chart {
+  position: relative;
+  padding: 12px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.chip-chart svg {
+  display: block;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-ref {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.chart-ref-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-last,
+.chart-hover {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.chart-refill-line {
+  fill: none;
+  stroke: #d9a032;
+  stroke-width: 2;
+  stroke-dasharray: 3 4;
+}
+.chart-refill {
+  fill: #d9a032;
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.chart-cross {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.chart-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+.chart-tooltip {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-tooltip strong {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 6px 8px 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.key-line {
+  width: 16px;
+  height: 2px;
+  background: var(--accent);
+}
+.key-ref {
+  width: 16px;
+  border-top: 1px dashed var(--muted);
+}
+.key-refill {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d9a032;
+}
+.chart-table {
+  margin: 8px 8px 0;
+}
+.chart-table summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.chart-table .stat-table {
+  margin-top: 8px;
+}

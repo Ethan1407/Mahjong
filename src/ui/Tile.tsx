@@ -53,9 +53,15 @@ export interface TileProps {
   dim?: boolean
   onClick?: () => void
   title?: string
+  /** 有台：加金框，滑鼠移上去（或點一下）顯示這段說明。 */
+  tip?: string
+  /** 發牌動畫：延遲幾毫秒後飛進來。 */
+  dealDelay?: number
+  /** 一般說明（滑鼠移上去顯示，不加金框），例如被誰吃碰走。 */
+  note?: string
 }
 
-export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClick, title }: TileProps) {
+export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClick, title, tip, dealDelay, note }: TileProps) {
   const cls = [
     'tile',
     `tile-${size}`,
@@ -64,20 +70,27 @@ export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClic
     highlight && 'highlight',
     dim && 'dim',
     onClick && 'clickable',
+    tip && 'tai',
+    dealDelay !== undefined && 'deal-in',
   ]
     .filter(Boolean)
     .join(' ')
-  const label = back ? '牌背' : tileName(tile!)
+  const name = back ? '牌背' : tileName(tile!)
+  const info = tip ?? note
+  const label = info ? `${name}（${info}）` : name
   const content = back ? null : <Face tile={tile!} />
+  const style = dealDelay !== undefined ? { animationDelay: `${dealDelay}ms` } : undefined
+  // 有說明時用自訂的提示框（data-tip），不再用瀏覽器內建的 title，避免出現兩個提示
+  const titleAttr = info ? undefined : (title ?? name)
   if (onClick) {
     return (
-      <button type="button" className={cls} onClick={onClick} aria-label={label} aria-pressed={selected} title={title ?? label}>
+      <button type="button" className={cls} onClick={onClick} aria-label={label} aria-pressed={selected} title={titleAttr} data-tip={info} style={style}>
         {content}
       </button>
     )
   }
   return (
-    <span className={cls} role="img" aria-label={label} title={title ?? label}>
+    <span className={cls} role="img" aria-label={label} title={titleAttr} data-tip={info} tabIndex={info ? 0 : undefined} style={style}>
       {content}
     </span>
   )

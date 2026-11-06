@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng, parseTiles } from '../../engine'
 import { randomBot, efficiencyBot } from '../bots'
-import { applyAction, legalActions, seatsToAct, startRound } from '../round'
+import { applyAction, canDouble, doubleStakes, legalActions, seatsToAct, startRound } from '../round'
 import type { RoundState } from '../types'
 import { getView, visibleCounts } from '../view'
 import { stackedRound, tile } from './helpers'
@@ -34,6 +34,29 @@ describe('胡牌與截胡', () => {
     expect(s.phase).toBe('ended')
     const r = s.result!
     expect(r.type === 'win' && r.winner).toBe(1)
+  })
+
+  it('有人能胡時先問他；他胡了，能碰、能吃的人都不用再決定', () => {
+    const hands = [...CHOW_PUNG]
+    hands[3] = '12m 999p 999s 111z 222z 44z' // 聽三萬（邊張）
+    let s = stackedRound({ hands })
+    s = applyAction(s, { type: 'discard', seat: 0, tile: tile('3m') })
+    expect(seatsToAct(s)).toEqual([3])
+    expect(legalActions(s, 1)).toEqual([])
+    expect(legalActions(s, 2)).toEqual([])
+    s = applyAction(s, { type: 'ron', seat: 3 })
+    expect(s.phase).toBe('ended')
+  })
+
+  it('能胡的人不胡，才輪到碰，再輪到吃', () => {
+    const hands = [...CHOW_PUNG]
+    hands[3] = '12m 999p 999s 111z 222z 44z'
+    let s = stackedRound({ hands, front: '2p' })
+    s = applyAction(s, { type: 'discard', seat: 0, tile: tile('3m') })
+    s = applyAction(s, { type: 'pass', seat: 3 })
+    expect(seatsToAct(s)).toEqual([2])
+    s = applyAction(s, { type: 'pass', seat: 2 })
+    expect(seatsToAct(s)).toEqual([1])
   })
 
   it('較近的人不胡，就輪到下一個；人胡、放槍者付錢', () => {
@@ -84,21 +107,26 @@ describe('吃、碰、槓', () => {
   it('只有下家能吃', () => {
     let s = stackedRound({ hands: CHOW_PUNG, front: '2p' })
     s = applyAction(s, { type: 'discard', seat: 0, tile: tile('3m') })
+    // 先問能碰的座位 2；他不要之後才輪到下家決定要不要吃
+    expect(legalActions(s, 1)).toEqual([])
+    s = applyAction(s, { type: 'pass', seat: 2 })
     const chows = legalActions(s, 1).filter((a) => a.type === 'chow')
     expect(chows).toHaveLength(2) // 一二萬吃、二四萬吃
     expect(legalActions(s, 3)).toEqual([]) // 座位 3 有一二萬，但不是下家
   })
 
-  it('碰優先於吃', () => {
+  it('碰優先於吃：能碰的人先決定，碰了就不用再問吃', () => {
     let s = stackedRound({ hands: CHOW_PUNG, front: '2p' })
     s = applyAction(s, { type: 'discard', seat: 0, tile: tile('3m') })
-    s = applyAction(s, { type: 'chow', seat: 1, tiles: [tile('1m'), tile('2m')] })
+    expect(seatsToAct(s)).toEqual([2])
     s = applyAction(s, { type: 'pung', seat: 2 })
     expect(s.turn).toBe(2)
     expect(s.phase).toBe('discard')
     expect(s.drewThisTurn).toBe(false)
-    expect(s.players[2].melds).toEqual([{ type: 'pung', tiles: parseTiles('333m'), fromSeat: 0 }])
+    expect(s.players[2].melds).toEqual([{ type: 'pung', tiles: parseTiles('333m'), fromSeat: 0, riverIndex: 0 }])
     expect(s.players[1].melds).toEqual([])
+    // 牌河記下被誰、怎麼拿走
+    expect(s.players[0].river[0]).toEqual({ tile: tile('3m'), claimed: true, claimedBy: { seat: 2, how: 'pung' } })
     // 碰完不能自摸，也不能槓，只能打牌
     expect(legalActions(s, 2).every((a) => a.type === 'discard')).toBe(true)
   })
@@ -244,5 +272,26 @@ describe('隨機對局', () => {
         s = applyAction(s, efficiencyBot(view, rng))
       }
     }
+  })
+})
+
+describe('台數加倍', () => {
+  it('前兩圈內可以加倍一次，結算時每台的錢變兩倍', () => {
+    const s0 = startRound({ seed: 3, dealer: 0, dealerStreak: 0, roundWind: 0 })
+    expect(canDouble(s0)).toBe(true)
+    const s1 = doubleStakes(s0, 0)
+    expect(s1.rules.perTai).toBe(s0.rules.perTai * 2)
+    expect(s1.doubled).toEqual({ by: 0, fromPerTai: s0.rules.perTai, factor: 2 })
+    expect(canDouble(s1)).toBe(false)
+    // 可以選 2–5 倍
+    expect(doubleStakes(s0, 0, 5).rules.perTai).toBe(s0.rules.perTai * 5)
+    expect(() => doubleStakes(s0, 0, 6)).toThrow()
+    expect(s0.rules.perTai).toBe(20) // 原本的狀態不受影響
+  })
+
+  it('超過兩圈就不能加倍', () => {
+    const s = startRound({ seed: 3, dealer: 0, dealerStreak: 0, roundWind: 0 })
+    s.players.forEach((p) => (p.discards = 2))
+    expect(canDouble(s)).toBe(false)
   })
 })

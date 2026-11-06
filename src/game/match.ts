@@ -11,8 +11,12 @@ export interface MatchConfig {
   seed: number
   /** 打幾圈：1 = 只打東風圈，4 = 一將。 */
   winds: 1 | 2 | 3 | 4
-  /** 第一局的莊家。 */
+  /** 指定第一局的莊家（測試用）；不指定就擲骰決定。 */
   firstDealer?: Seat
+  /** 擲骰的人，預設座位 0（真人玩家）。 */
+  diceRoller?: Seat
+  /** 開局擲出的三顆骰子（實際對局在按下「擲骰子」時才用真亂數擲）；不指定就由種子決定。 */
+  openingDice?: number[]
   rules?: Partial<RuleConfig>
   reserve?: number
 }
@@ -27,8 +31,17 @@ export interface HandRecord {
   deltas: number[]
 }
 
+export interface OpeningDice {
+  roller: Seat
+  dice: number[]
+  total: number
+  dealer: Seat
+}
+
 export interface MatchState {
   config: MatchConfig
+  /** 開局擲骰定莊的結果（指定莊家時為 null）。 */
+  opening: OpeningDice | null
   scores: number[]
   roundWind: number
   dealer: Seat
@@ -58,12 +71,28 @@ function newRound(m: Omit<MatchState, 'round'>): RoundState {
   })
 }
 
+/**
+ * 擲骰定莊：擲 3 顆骰子，從擲骰的人開始逆時針數（自己算 1）。
+ * 1、5、9、13、17 → 自己；2、6、10、14、18 → 下家；3、7、11、15 → 對家；4、8、12、16 → 上家。
+ */
+export const dealerFromDice = (roller: Seat, total: number): Seat => (roller + total - 1) % 4
+
+export function rollOpening(seed: number, roller: Seat = 0, given?: number[]): OpeningDice {
+  const rng = createRng((seed ^ 0x5bd1e995) >>> 0)
+  const dice = given ?? [0, 1, 2].map(() => 1 + Math.floor(rng() * 6))
+  if (dice.length !== 3 || dice.some((d) => !Number.isInteger(d) || d < 1 || d > 6)) throw new Error(`骰子點數不合法：${dice}`)
+  const total = dice.reduce((a, b) => a + b, 0)
+  return { roller, dice, total, dealer: dealerFromDice(roller, total) }
+}
+
 export function startMatch(config: MatchConfig): MatchState {
+  const opening = config.firstDealer === undefined ? rollOpening(config.seed, config.diceRoller ?? 0, config.openingDice) : null
   const base = {
     config,
+    opening,
     scores: [0, 0, 0, 0],
     roundWind: 0,
-    dealer: config.firstDealer ?? 0,
+    dealer: config.firstDealer ?? opening!.dealer,
     dealerStreak: 0,
     dealerChanges: 0,
     handNumber: 0,
@@ -106,6 +135,7 @@ export function nextHand(m: MatchState): MatchState {
 
   const next = {
     config: m.config,
+    opening: m.opening,
     scores: m.scores.map((s, i) => s + deltas[i]),
     roundWind,
     dealer,

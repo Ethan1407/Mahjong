@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { WIND_NAMES, analyzeDiscards, tileName, toCounts, type Tile as TileId } from '../engine'
 import {
+  DOUBLE_DEADLINE_DISCARDS,
+  DOUBLE_FACTORS,
+  canDouble,
   describeEventFor,
   roundName,
   visibleCounts,
@@ -11,57 +14,396 @@ import {
   type RoundState,
   type SeatView,
 } from '../game'
-import { DIFFICULTIES, type Difficulty } from '../difficulty'
+import { readOpponents, tileDanger, type BotLevel, type DangerLevel } from '../ai'
+import { DIFFICULTIES } from '../difficulty'
+import {
+  STARTING_BALANCE,
+  chargeExitFee,
+  exitFeeOf,
+  formatChips,
+  loadWallet,
+  recordHand,
+  stakeKey,
+  stakeLabel,
+  stakeOf,
+  type CustomStake,
+  type StakeId,
+} from '../wallet'
+import { recordHandOutcome, recordMatchFinish, recordMatchStart, recordStakeFee, type HandOutcome } from '../profile'
+import { usePlayTime } from './usePlayTime'
+import { GoldBurst, useCallBursts, type Burst } from './GoldBurst'
+import { flowerNotes, meldNotes, myStatusNotes, myTaiHints, type TaiNote } from '../analysis/taiHints'
 import { Tile, TileRow } from './Tile'
-import { HUMAN, useGame } from './useGame'
+import { AssistMenu, useAssist } from './assist'
+import { DiceScreen } from './DiceScreen'
+import { OpponentInsights } from './OpponentInsights'
+import { DEAL_STEPS, HUMAN, seatName, useGame } from './useGame'
 import './table.css'
 
-/** 依相對位置命名：0 = 自己（下方）、1 = 下家（右）、2 = 對家（上）、3 = 上家（左）。 */
-const REL_NAMES = ['你', '下家', '對家', '上家']
+/** 依相對位置：0 = 自己（下方）、1 = 下家（右）、2 = 對家（上）、3 = 上家（左）。 */
 const REL_POS = ['bottom', 'right', 'top', 'left'] as const
 const rel = (seat: number) => (seat - HUMAN + 4) % 4
-const seatName = (seat: number) => REL_NAMES[rel(seat)]
 
 const SHANTEN_TEXT = (n: number) => (n <= 0 ? (n < 0 ? '胡牌' : '聽牌') : `${n} 向聽`)
 
-export function TableScreen({ difficulty, onExit }: { difficulty: Difficulty; onExit: () => void }) {
-  const { match, round, view, act, next, restart } = useGame(difficulty)
+/** 發牌中顯示幾張：每一步每人 1 張，發完才顯示全部（含莊家多拿的那張）。 */
+const dealtCount = (total: number, step: number | null) => (step === null ? total : Math.min(total, step))
+
+const taiTip = (n: TaiNote, suffix = '') => `${n.name}：+${n.tai} 台${suffix}。${n.reason}`
+
+export function TableScreen({
+  difficulty,
+  stake: stakeId,
+  custom,
+  onExit,
+}: {
+  difficulty: BotLevel
+  stake: StakeId
+  custom?: CustomStake
+  onExit: () => void
+}) {
+  const stake = useMemo(() => stakeOf(stakeId, custom), [stakeId, custom])
+  const { match, round, view, started, start, rollDice, dealProgress, act, next, restart, double, matchStartedAt, handSeconds } =
+    useGame(difficulty, stake)
   const difficultyName = DIFFICULTIES.find((d) => d.id === difficulty)!.name
+  const [assist, updateAssist] = useAssist()
+
+  // 每打完一局就把你的輸贏記進錢包（存在這台裝置）；同一局只記一次
+  const [balance, setBalance] = useState(() => loadWallet().balance)
+  /** 這一局之後籌碼輸光、自動補充了（結算時告訴你）。 */
+  const [refilled, setRefilled] = useState(false)
+  const result = round?.result ?? null
+  useEffect(() => {
+    if (!result) {
+      setRefilled(false)
+      return
+    }
+    if (stake.free) return
+    const delta = result.type === 'win' ? result.payments.deltas[HUMAN] : 0
+    const w = recordHand(match.config.seed, stake, matchStartedAt ?? Date.now(), match.handNumber, delta)
+    setBalance(w.balance)
+    if (w.refilled) setRefilled(true)
+  }, [result, stake, match.config.seed, match.handNumber, matchStartedAt])
+
+  // 個人中心：記錄每一局的結果、開始與打完幾將、各種入場玩了幾場（存在本機）
+  const stakeRef = useMemo(() => ({ key: stakeKey(stake), label: stakeLabel(stake) }), [stake])
+  const seed = match.config.seed
+  const counted = useRef({ start: -1, finish: -1 })
+  useEffect(() => {
+    if (!started || counted.current.start === seed) return
+    counted.current.start = seed
+    recordMatchStart(stakeRef)
+  }, [started, seed])
+  useEffect(() => {
+    if (!match.finished || match.history.length === 0 || counted.current.finish === seed) return
+    counted.current.finish = seed
+    recordMatchFinish()
+  }, [match.finished, seed, match.history.length])
+  useEffect(() => {
+    if (!result || !round) return
+    const delta = result.type === 'win' ? result.payments.deltas[HUMAN] : 0
+    const base = {
+      match: seed,
+      hand: match.handNumber,
+      level: difficulty,
+      stake: stakeRef,
+      delta,
+    }
+    let outcome: HandOutcome
+    if (result.type !== 'win') outcome = { ...base, kind: 'draw' }
+    else if (result.winner === HUMAN) {
+      outcome = {
+        ...base,
+        kind: 'win',
+        tsumo: result.discarder === null,
+        tai: result.score.tai,
+        items: result.score.items.map((i) => i.name),
+        turn: winTurn(result, round),
+      }
+    } else if (result.discarder === HUMAN) outcome = { ...base, kind: 'dealIn' }
+    else if (result.discarder === null) outcome = { ...base, kind: 'tsumoAgainst' }
+    else outcome = { ...base, kind: 'otherWin' }
+    recordHandOutcome(outcome)
+    // 只在這一局有結果時記一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result])
+
+  // 台數加倍：選完倍數後播放金色「×N」動畫
+  const [burst, setBurst] = useState<Burst | null>(null)
+  const doubleWithBurst = (factor: number) => {
+    if (stake.free) return // 免費入場不能加倍
+    double(factor)
+    setBurst({ text: `台數 ×${factor}`, key: Date.now() })
+  }
+  const endBurst = useCallback(() => setBurst(null), [])
+  // 所有玩家吃、碰、槓、胡、自摸時，也用金色大字顯示（文字在 GoldBurst.tsx 裡改）
+  const [callBurst, endCallBurst] = useCallBursts(round, `${match.config.seed}:${match.handNumber}`)
+
+  // 中途離開：有賭注的對局、你出過牌之後，離開要扣入場費（先確認）
+  const [confirmExit, setConfirmExit] = useState(false)
+  const exitFee = exitFeeOf(stake)
+  const humanPlayed = match.history.length > 0 || (round?.players[HUMAN].discards ?? 0) > 0
+  const mustPayToLeave = exitFee > 0 && started && !match.finished && humanPlayed
+  const requestExit = () => (mustPayToLeave ? setConfirmExit(true) : onExit())
+  const leaveAndPay = () => {
+    chargeExitFee(seed, stake, exitFee)
+    recordStakeFee(stakeRef, exitFee)
+    setConfirmExit(false)
+    onExit()
+  }
+
+  // 有效遊玩時間：在對局中、網頁在前面、一分鐘內有動作才計時
+  const playTime = usePlayTime(started && !match.finished && round !== null, seed)
+
+  // 局名放在最上方橫幅裡，但水平位置對齊對家的名牌（左邊開著機器人思路時，牌桌會往右移）
+  const headerRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const align = () => {
+      const badge = header.parentElement?.querySelector('.seat-top .seat-badge')
+      if (!badge) return
+      const b = badge.getBoundingClientRect()
+      // 以局名所在的那一塊為基準（手機上局名自己一行，左右有留白）
+      const h = (header.querySelector('.round-banner') ?? header).getBoundingClientRect()
+      header.style.setProperty('--title-x', `${b.left + b.width / 2 - h.left}px`)
+    }
+    align()
+    window.addEventListener('resize', align)
+    const ro = new ResizeObserver(align)
+    ro.observe(header)
+    const table = header.parentElement?.querySelector('.table')
+    if (table) ro.observe(table)
+    return () => {
+      window.removeEventListener('resize', align)
+      ro.disconnect()
+    }
+  }, [assist.botThoughts, started, round === null])
 
   if (match.finished || !round || !view) {
     return <MatchSummary match={match} onRestart={restart} onExit={onExit} />
   }
+  if (!started && match.opening) {
+    return <DiceScreen onRoll={rollDice} onStart={start} onExit={onExit} />
+  }
 
   return (
     <div className="table-page">
-      <header className="table-header">
-        <button type="button" className="link-button" onClick={onExit}>
-          ← 離開
-        </button>
-        <span className="table-title">
-          {roundName(match.roundWind, match.dealerChanges)}
-          {match.dealerStreak > 0 && `（連 ${match.dealerStreak}）`}
+      <header className="table-header banner" ref={headerRef}>
+        <div className="banner-side">
+          <button type="button" className="link-button" onClick={requestExit}>
+            ← 離開
+          </button>
+          <span className="table-meta">
+            機器人：{difficultyName} · {stake.free ? '免費入場' : `底 ${stake.base}／每台 ${stake.perTai}`}
+          </span>
+        </div>
+        {/* 最上方橫幅的正中間：現在是哪一局 */}
+        <span className="table-title round-banner">
+          <span className="round-banner-text">
+            {roundName(match.roundWind, match.dealerChanges)}
+            {match.dealerStreak > 0 && `（連 ${match.dealerStreak}）`}
+            {round.doubled && <span className="doubled-badge">台數 ×{round.doubled.factor}</span>}
+          </span>
         </span>
-        <span className="table-meta">機器人：{difficultyName}</span>
+        <div className="banner-side right">
+          {stake.free ? (
+            // 免費入場不能台數加倍，只顯示分數
+            <span className="chips-button static" title="免費入場不能台數加倍">
+              分數 <strong>{signed(match.scores[HUMAN])}</strong>
+            </span>
+          ) : (
+            <DoubleMenu round={round} dealing={dealProgress !== null} onDouble={doubleWithBurst} label="籌碼與台數加倍">
+              籌碼 <strong>{formatChips(balance)}</strong>
+            </DoubleMenu>
+          )}
+          <AssistMenu settings={assist} update={updateAssist} />
+        </div>
       </header>
 
-      <div className="table">
-        {[2, 3, 1].map((r) => {
-          const seat = (HUMAN + r) % 4
-          return <OpponentArea key={seat} sv={view.seats[seat]} view={view} match={match} />
-        })}
-        <Center view={view} match={match} round={round} />
-        <PlayerArea view={view} match={match} act={act} />
+      <div className={`table-layout${assist.botThoughts ? ' with-insights' : ''}`}>
+        {assist.botThoughts && <OpponentInsights view={view} onClose={() => updateAssist({ botThoughts: false })} />}
+        <div className="table">
+          {[2, 3, 1].map((r) => {
+            const seat = (HUMAN + r) % 4
+            return (
+              <OpponentArea
+                key={seat}
+                sv={view.seats[seat]}
+                view={view}
+                match={match}
+                deal={dealProgress}
+                taiOn={assist.taiHints}
+              />
+            )
+          })}
+          <Center view={view} match={match} round={round} deal={dealProgress} />
+          <PlayerArea
+            view={view}
+            match={match}
+            act={act}
+            showHint={assist.discardHint}
+            taiOn={assist.taiHints}
+            deal={dealProgress}
+            scoreSlot={
+              stake.free ? undefined : (
+                <DoubleMenu
+                  round={round}
+                  dealing={dealProgress !== null}
+                  onDouble={doubleWithBurst}
+                  label="你這將的輸贏與台數加倍"
+                  placement="up"
+                  className="seat-double"
+                >
+                  <span className="seat-score">{signed(match.scores[HUMAN])}</span>
+                </DoubleMenu>
+              )
+            }
+          />
+        </div>
       </div>
 
-      {round.result && <ResultDialog result={round.result} round={round} onNext={next} />}
+      {round.result && (
+        <ResultDialog result={round.result} round={round} seconds={handSeconds} refilled={refilled} onNext={next} />
+      )}
+      <PlayClock seconds={playTime.seconds} paused={playTime.paused} />
+      {burst && <GoldBurst key={burst.key} text={burst.text} sub={burst.sub} onDone={endBurst} />}
+      {callBurst && !burst && <GoldBurst key={callBurst.key} text={callBurst.text} sub={callBurst.sub} onDone={endCallBurst} />}
+      {confirmExit && (
+        <div className="dialog-backdrop">
+          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="exit-title">
+            <h2 id="exit-title">確定要離開嗎？</h2>
+            <p>
+              這是有賭注的對局（{stake.name}
+              ），你已經出過牌了。現在離開會扣掉入場費 <strong>{formatChips(exitFee)}</strong> 籌碼。
+            </p>
+            <p className="result-time">
+              目前籌碼 {formatChips(balance)} → 離開後 {formatChips(balance - exitFee)}
+            </p>
+            <div className="dialog-actions">
+              <button type="button" className="action" onClick={leaveAndPay}>
+                扣入場費並離開
+              </button>
+              <button type="button" className="action primary" onClick={() => setConfirmExit(false)} autoFocus>
+                繼續打
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────── 籌碼與台數加倍 ───────────────────────────
+
+/**
+ * 台數加倍的選單：滑鼠移上去（或點一下）打開。按「台數加倍」後再選 ×2–×5。
+ * 只有前兩圈（四家都還沒打滿兩張）可以加倍，每局一次，所有玩家都適用。
+ * 右上角的籌碼、和你座位上的輸贏分數都可以打開這個選單。
+ */
+function DoubleMenu({
+  round,
+  dealing,
+  onDouble,
+  children,
+  label,
+  placement = 'down',
+  className = '',
+}: {
+  round: RoundState
+  dealing: boolean
+  onDouble: (factor: number) => void
+  /** 按鈕裡顯示的內容（籌碼或分數）。 */
+  children: React.ReactNode
+  label: string
+  /** 選單往下（右上角）或往上（畫面下方的座位）打開。 */
+  placement?: 'down' | 'up'
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const allowed = !dealing && canDouble(round)
+  const perTai = round.rules.perTai
+  const close = () => {
+    setOpen(false)
+    setPicking(false)
+  }
+  return (
+    <div className={`chips-menu ${placement}${open ? ' open' : ''} ${className}`} onMouseLeave={close}>
+      <button type="button" className="chips-button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={label}>
+        {children}
+        {round.doubled && <span className="doubled-dot">×{round.doubled.factor}</span>}
+      </button>
+      <div className="chips-pop" role="dialog" aria-label="台數加倍">
+        <p className="chips-pop-title">
+          這一局：底 {round.rules.base}、每台 {perTai}
+        </p>
+        {round.doubled ? (
+          <p>
+            這局台數已經 <strong>×{round.doubled.factor}</strong>：每台 {round.doubled.fromPerTai} → {perTai}，所有玩家都適用。
+          </p>
+        ) : allowed ? (
+          picking ? (
+            <>
+              <p>要加幾倍？所有玩家（包括你）的輸贏都會跟著變大。</p>
+              <div className="factor-row">
+                {DOUBLE_FACTORS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className="factor-button"
+                    onClick={() => {
+                      onDouble(f)
+                      close()
+                    }}
+                  >
+                    <strong>×{f}</strong>
+                    <span>每台 {perTai * f}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="link-button" onClick={() => setPicking(false)}>
+                不要加倍
+              </button>
+            </>
+          ) : (
+            <>
+              <p>要不要把這一局的台數價格加倍？可以選 ×2 到 ×5。</p>
+              <button type="button" className="action primary" onClick={() => setPicking(true)}>
+                台數加倍
+              </button>
+              <p className="chips-pop-note">前兩圈內（四家各打兩張之前）才能加倍，每局一次。</p>
+            </>
+          )
+        ) : (
+          <p className="chips-pop-note">
+            {dealing
+              ? '發完牌之後才能選擇加倍。'
+              : `已經過了前兩圈（四家共打出 ${DOUBLE_DEADLINE_DISCARDS} 張），這局不能再加倍。`}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
 
 // ─────────────────────────── 座位資訊 ───────────────────────────
 
-function SeatBadge({ sv, view, match }: { sv: SeatView; view: PlayerView; match: MatchState }) {
+const signed = (n: number) => `${n >= 0 ? '+' : ''}${n}`
+
+function SeatBadge({
+  sv,
+  view,
+  match,
+  scoreSlot,
+}: {
+  sv: SeatView
+  view: PlayerView
+  match: MatchState
+  /** 取代分數的內容（你的座位：可以打開台數加倍選單）。 */
+  scoreSlot?: React.ReactNode
+}) {
   const isDealer = sv.seat === view.dealer
   const active = view.phase === 'discard' && view.turn === sv.seat
   return (
@@ -69,26 +411,47 @@ function SeatBadge({ sv, view, match }: { sv: SeatView; view: PlayerView; match:
       <span className="seat-wind">{WIND_NAMES[sv.seatWind]}</span>
       <span className="seat-name">{seatName(sv.seat)}</span>
       {isDealer && <span className="dealer-chip">莊{view.dealerStreak > 0 ? ` 連${view.dealerStreak}` : ''}</span>}
-      <span className="seat-score">{match.scores[sv.seat] >= 0 ? '+' : ''}{match.scores[sv.seat]}</span>
+      {scoreSlot ?? <span className="seat-score">{signed(match.scores[sv.seat])}</span>}
     </div>
   )
 }
 
-function Melds({ sv, size }: { sv: SeatView; size: 'sm' | 'xs' }) {
+function Melds({
+  sv,
+  size,
+  meldTips = [],
+  flowerTips = new Map(),
+}: {
+  sv: SeatView
+  size: 'sm' | 'xs'
+  /** 每組副露的台數說明（有就加金框）。 */
+  meldTips?: (string | undefined)[]
+  flowerTips?: Map<TileId, string>
+}) {
   if (sv.melds.length === 0 && sv.flowers.length === 0) return null
   return (
     <div className="melds">
-      {sv.melds.map((m, i) => (
-        <span className="meld" key={i} title={m.type === 'ankan' ? '暗槓' : undefined}>
-          {m.hidden
-            ? [0, 1, 2, 3].map((k) => <Tile key={k} back size={size} />)
-            : m.tiles.map((t, k) => <Tile key={k} tile={t} size={size} dim={m.type === 'ankan' && (k === 0 || k === 3)} />)}
-        </span>
-      ))}
+      {sv.melds.map((m, i) => {
+        const tip = meldTips[i]
+        return (
+          <span
+            className={`meld${tip ? ' tai' : ''}`}
+            key={i}
+            title={!tip && m.type === 'ankan' ? '暗槓' : undefined}
+            data-tip={tip}
+            tabIndex={tip ? 0 : undefined}
+            aria-label={tip}
+          >
+            {m.hidden
+              ? [0, 1, 2, 3].map((k) => <Tile key={k} back size={size} />)
+              : m.tiles.map((t, k) => <Tile key={k} tile={t} size={size} dim={m.type === 'ankan' && (k === 0 || k === 3)} />)}
+          </span>
+        )
+      })}
       {sv.flowers.length > 0 && (
-        <span className="meld flowers" title="花牌">
+        <span className="meld flowers">
           {sv.flowers.map((f) => (
-            <Tile key={f} tile={f} size="xs" />
+            <Tile key={f} tile={f} size={size} tip={flowerTips.get(f)} />
           ))}
         </span>
       )}
@@ -96,20 +459,52 @@ function Melds({ sv, size }: { sv: SeatView; size: 'sm' | 'xs' }) {
   )
 }
 
-function OpponentArea({ sv, view, match }: { sv: SeatView; view: PlayerView; match: MatchState }) {
+function OpponentArea({
+  sv,
+  view,
+  match,
+  deal,
+  taiOn,
+}: {
+  sv: SeatView
+  view: PlayerView
+  match: MatchState
+  deal: number | null
+  taiOn: boolean
+}) {
   const pos = REL_POS[rel(sv.seat)]
+  const who = seatName(sv.seat)
+  const meldTips = taiOn
+    ? sv.melds.map((m) => {
+        const notes = meldNotes(m, sv.seatWind, view.roundWind)
+        return notes.length > 0 ? notes.map((n) => taiTip(n, `（${who}胡牌時算）`)).join('\n') : undefined
+      })
+    : []
+  const flowerTips = taiOn
+    ? new Map([...flowerNotes(sv.flowers, sv.seatWind)].map(([f, n]) => [f, taiTip(n, `（${who}胡牌時算）`)]))
+    : new Map<TileId, string>()
+  const dealingDone = deal === null || deal >= DEAL_STEPS
   return (
-    <section className={`seat-area seat-${pos}`} aria-label={seatName(sv.seat)}>
+    <section className={`seat-area seat-${pos}`} aria-label={who}>
       <SeatBadge sv={sv} view={view} match={match} />
       <div className="hand-count">
-        <Tile back size="xs" /> × {sv.handCount}
+        <Tile back size="xs" /> × {dealtCount(sv.handCount, deal)}
       </div>
-      <Melds sv={sv} size="xs" />
+      {dealingDone && <Melds sv={sv} size="xs" meldTips={meldTips} flowerTips={flowerTips} />}
     </section>
   )
 }
 
 // ─────────────────────────── 中央：牌河與局況 ───────────────────────────
+
+const TAKEN_VERB = { chow: '吃', pung: '碰', minkan: '槓', ron: '胡' } as const
+
+/** 被拿走的牌：滑鼠移上去顯示「你打的三萬被下家碰走」。 */
+function takenNote(from: number, r: SeatView['river'][number]): string | undefined {
+  if (!r.claimed || !r.claimedBy) return undefined
+  const { seat, how } = r.claimedBy
+  return `${seatName(from)}打的${tileName(r.tile)}，被${seatName(seat)}${TAKEN_VERB[how]}${how === 'ron' ? '了' : '走'}`
+}
 
 function River({ sv, view }: { sv: SeatView; view: PlayerView }) {
   const pos = REL_POS[rel(sv.seat)]
@@ -119,13 +514,13 @@ function River({ sv, view }: { sv: SeatView; view: PlayerView }) {
   return (
     <div className={`river river-${pos}`} aria-label={`${seatName(sv.seat)}的牌河`}>
       {sv.river.map((r, i) => (
-        <Tile key={i} tile={r.tile} size="xs" dim={r.claimed} highlight={isLast(i)} />
+        <Tile key={i} tile={r.tile} size="xs" dim={r.claimed} highlight={isLast(i)} note={takenNote(sv.seat, r)} />
       ))}
     </div>
   )
 }
 
-function Center({ view, match, round }: { view: PlayerView; match: MatchState; round: RoundState }) {
+function Center({ view, match, round, deal }: { view: PlayerView; match: MatchState; round: RoundState; deal: number | null }) {
   const log = round.log.slice(-6).map((e) => describeEventFor(e, HUMAN, seatName))
   return (
     <div className="center">
@@ -139,11 +534,17 @@ function Center({ view, match, round }: { view: PlayerView; match: MatchState; r
         <div className="center-round">
           {WIND_NAMES[match.roundWind]}風圈 · 第 {match.handNumber + 1} 局
         </div>
-        <ol className="event-log" aria-live="polite">
-          {log.map((line, i) => (
-            <li key={round.log.length - log.length + i}>{line}</li>
-          ))}
-        </ol>
+        {deal !== null ? (
+          <p className="dealing-text" aria-live="polite">
+            發牌中…
+          </p>
+        ) : (
+          <ol className="event-log" aria-live="polite">
+            {log.map((line, i) => (
+              <li key={round.log.length - log.length + i}>{line}</li>
+            ))}
+          </ol>
+        )}
       </div>
     </div>
   )
@@ -151,15 +552,33 @@ function Center({ view, match, round }: { view: PlayerView; match: MatchState; r
 
 // ─────────────────────────── 自己的手牌與操作 ───────────────────────────
 
-function PlayerArea({ view, match, act }: { view: PlayerView; match: MatchState; act: (a: Action) => void }) {
+function PlayerArea({
+  view,
+  match,
+  act,
+  showHint,
+  taiOn,
+  deal,
+  scoreSlot,
+}: {
+  view: PlayerView
+  match: MatchState
+  act: (a: Action) => void
+  showHint: boolean
+  taiOn: boolean
+  deal: number | null
+  scoreSlot?: React.ReactNode
+}) {
   const me = view.seats[HUMAN]
-  const [selected, setSelected] = useState<TileId | null>(null)
-  const myTurn = view.phase === 'discard' && view.turn === HUMAN
+  /** 選了第幾張（手上有兩張一樣的牌時，只浮起點到的那一張）。 */
+  const [selIdx, setSelIdx] = useState<number | null>(null)
+  const dealing = deal !== null
+  const myTurn = !dealing && view.phase === 'discard' && view.turn === HUMAN
   const canDiscard = myTurn && view.legal.some((a) => a.type === 'discard')
 
   // 手牌變了就取消選取
   const handKey = view.hand.join(',')
-  useEffect(() => setSelected(null), [handKey, view.phase])
+  useEffect(() => setSelIdx(null), [handKey, view.phase])
 
   // 摸進來的牌放在最右邊、隔開一點
   const drawn = myTurn ? view.lastDrawn : null
@@ -168,30 +587,114 @@ function PlayerArea({ view, match, act }: { view: PlayerView; match: MatchState;
     if (drawn !== null) tiles.splice(tiles.indexOf(drawn), 1)
     return tiles
   }, [view.hand, drawn])
+  const shown = drawn !== null ? [...handTiles, drawn] : handTiles
+  const selected: TileId | null = selIdx !== null ? (shown[selIdx] ?? null) : null
 
-  const clickTile = (t: TileId) => {
+  const clickTile = (idx: number) => {
     if (!canDiscard) return
-    if (selected === t) act({ type: 'discard', seat: HUMAN, tile: t })
-    else setSelected(t)
+    if (selIdx === idx) act({ type: 'discard', seat: HUMAN, tile: shown[idx] })
+    else setSelIdx(idx)
   }
+
+  // 台數提示：哪幾張牌、哪幾組副露、哪幾張花有台
+  const hints = useMemo(() => (taiOn ? myTaiHints(view) : []), [taiOn, view])
+  const status = useMemo(() => (taiOn ? myStatusNotes(view) : []), [taiOn, view])
+  const tileTips: string[][] = shown.map(() => [])
+  const meldTips: string[][] = me.melds.map(() => [])
+  const flowerTips = new Map<TileId, string>()
+  for (const h of hints) {
+    const text = taiTip(h, h.whenWin ? '（胡牌時沒拆掉就算）' : '')
+    const used = new Set<number>()
+    for (const t of h.tiles) {
+      const idx = shown.findIndex((x, i) => x === t && !used.has(i))
+      if (idx >= 0) {
+        used.add(idx)
+        tileTips[idx].push(text)
+      }
+    }
+    for (const i of h.meldIdx) meldTips[i].push(text)
+    for (const f of h.flowers) flowerTips.set(f, text)
+  }
+  const tipAt = (i: number) => (tileTips[i].length > 0 ? tileTips[i].join('\n') : undefined)
+
+  // 發牌中只顯示已經發到的牌，新發到的牌會飛進來
+  const visible = dealtCount(handTiles.length, deal)
+  const dealDelay = dealing ? 0 : undefined
+  const showMelds = deal === null || deal >= DEAL_STEPS
 
   return (
     <section className="seat-area seat-bottom" aria-label="你的手牌">
-      <SeatBadge sv={me} view={view} match={match} />
-      <Melds sv={me} size="sm" />
-      <div className="my-hand">
-        {handTiles.map((t, i) => (
-          <Tile key={`${t}-${i}`} tile={t} size="lg" selected={selected === t} onClick={canDiscard ? () => clickTile(t) : undefined} />
-        ))}
-        {drawn !== null && (
-          <span className="drawn-slot">
-            <Tile tile={drawn} size="lg" selected={selected === drawn} onClick={canDiscard ? () => clickTile(drawn) : undefined} />
-          </span>
-        )}
+      <SeatBadge sv={me} view={view} match={match} scoreSlot={scoreSlot} />
+      {showMelds && (
+        <Melds
+          sv={me}
+          size="sm"
+          meldTips={meldTips.map((t) => (t.length > 0 ? t.join('\n') : undefined))}
+          flowerTips={flowerTips}
+        />
+      )}
+      <div className="hand-wrap">
+        {/* 最佳出牌提示：浮在手牌上方，不會把手牌推動 */}
+        {showHint && canDiscard && selected !== null && <DiscardHint view={view} tile={selected} />}
+        {!dealing && view.phase !== 'discard' && <ClaimChoices view={view} act={act} />}
+        <div className="my-hand">
+          {handTiles.slice(0, visible).map((t, i) => (
+            <Tile
+              key={`${t}-${i}`}
+              tile={t}
+              size="lg"
+              selected={selIdx === i}
+              onClick={canDiscard ? () => clickTile(i) : undefined}
+              tip={dealing ? undefined : tipAt(i)}
+              dealDelay={dealDelay}
+            />
+          ))}
+          {drawn !== null && !dealing && (
+            <span className="drawn-slot">
+              <Tile
+                tile={drawn}
+                size="lg"
+                selected={selIdx === shown.length - 1}
+                onClick={canDiscard ? () => clickTile(shown.length - 1) : undefined}
+                tip={tipAt(shown.length - 1)}
+              />
+            </span>
+          )}
+        </div>
       </div>
-      <ActionBar view={view} selected={selected} act={act} />
-      {canDiscard && selected !== null && <DiscardHint view={view} tile={selected} />}
+      {!dealing && (hints.length > 0 || status.length > 0) && <TaiLegend hints={hints} status={status} />}
+      {dealing ? (
+        <div className="action-bar">
+          <span className="action-hint">發牌中…</span>
+        </div>
+      ) : (
+        <ActionBar view={view} selected={selected} act={act} showHint={showHint} />
+      )}
     </section>
+  )
+}
+
+/** 手牌下方：目前有台的組合（觸控裝置也能點來看說明）。 */
+function TaiLegend({ hints, status }: { hints: ReturnType<typeof myTaiHints>; status: TaiNote[] }) {
+  return (
+    <div className="tai-legend" aria-label="目前有台的組合">
+      <span className="tai-legend-title">目前有台：</span>
+      {hints.map((h, i) => (
+        <span
+          key={`h-${i}`}
+          className="tai-chip framed"
+          tabIndex={0}
+          data-tip={taiTip(h, h.whenWin ? '（胡牌時沒拆掉就算）' : '')}
+        >
+          {h.name} +{h.tai}
+        </span>
+      ))}
+      {status.map((n, i) => (
+        <span key={`s-${i}`} className="tai-chip" tabIndex={0} data-tip={taiTip(n)}>
+          {n.name} +{n.tai}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -203,7 +706,17 @@ const CLAIM_LABEL: Partial<Record<Action['type'], string>> = {
   pass: '過',
 }
 
-function ActionBar({ view, selected, act }: { view: PlayerView; selected: TileId | null; act: (a: Action) => void }) {
+function ActionBar({
+  view,
+  selected,
+  act,
+  showHint,
+}: {
+  view: PlayerView
+  selected: TileId | null
+  act: (a: Action) => void
+  showHint: boolean
+}) {
   const legal = view.legal
   const pending = view.pending
 
@@ -223,36 +736,23 @@ function ActionBar({ view, selected, act }: { view: PlayerView; selected: TileId
             打出 {tileName(selected)}
           </button>
         ) : (
-          <span className="action-hint">輪到你：點一張牌看分析，再點一次（或按「打出」）就會打出去</span>
+          <span className="action-hint">
+            輪到你：點一張牌{showHint ? '看分析' : '選取'}
+            ，再點一次（或按「打出」）就會打出去
+          </span>
         )}
       </div>
     )
   }
 
   if (legal.length > 0 && pending) {
-    const fromName = seatName(pending.from)
+    // 選擇框浮在手牌上方（ClaimChoices），這裡只留一句提示
     return (
       <div className="action-bar">
         <span className="action-hint">
-          {fromName}
-          {pending.kind === 'kakan' ? '要加槓' : '打出'} <Tile tile={pending.tile} size="sm" />
+          在手牌上方選擇要不要
+          {legal.some((a) => a.type === 'ron') ? '胡' : '吃、碰、槓'}
         </span>
-        {legal.map((a, i) => (
-          <button
-            key={i}
-            type="button"
-            className={a.type === 'ron' ? 'action win' : a.type === 'pass' ? 'action subtle' : 'action'}
-            onClick={() => act(a)}
-          >
-            {a.type === 'chow' ? (
-              <>
-                吃 <TileRow tiles={[...a.tiles, pending.tile].sort((x, y) => x - y)} size="xs" />
-              </>
-            ) : (
-              CLAIM_LABEL[a.type]
-            )}
-          </button>
-        ))}
       </div>
     )
   }
@@ -265,18 +765,85 @@ function ActionBar({ view, selected, act }: { view: PlayerView; selected: TileId
   )
 }
 
-/** 選了一張牌時的基本分析（完整的放槍風險分析在階段 5 加入）。 */
-function DiscardHint({ view, tile }: { view: PlayerView; tile: TileId }) {
-  const options = useMemo(
-    () => analyzeDiscards(toCounts(view.hand), view.seats[HUMAN].melds.length, visibleCounts(view)),
-    [view],
+/** 可以吃、碰、槓、胡時的選擇框：浮在手牌正上方，比較不會沒注意到。 */
+function ClaimChoices({ view, act }: { view: PlayerView; act: (a: Action) => void }) {
+  const legal = view.legal
+  const pending = view.pending
+  if (legal.length === 0 || !pending) return null
+  const fromName = seatName(pending.from)
+  return (
+    <div className="claim-choices" role="group" aria-label="可以吃碰槓胡">
+      <span className="claim-title">
+        {fromName}
+        {pending.kind === 'kakan' ? '要加槓' : '打出'} <Tile tile={pending.tile} size="sm" />
+      </span>
+      {legal.map((a, i) => (
+        <button
+          key={i}
+          type="button"
+          className={a.type === 'ron' ? 'action win' : a.type === 'pass' ? 'action subtle' : 'action'}
+          onClick={() => act(a)}
+        >
+          {a.type === 'chow' ? (
+            <>
+              吃 <TileRow tiles={[...a.tiles, pending.tile].sort((x, y) => x - y)} size="xs" />
+            </>
+          ) : (
+            CLAIM_LABEL[a.type]
+          )}
+        </button>
+      ))}
+    </div>
   )
+}
+
+const RISK_TEXT: Record<DangerLevel, string> = {
+  safe: '很低',
+  low: '低',
+  mid: '中',
+  high: '高',
+}
+const pct = (x: number) => (x < 0.01 ? '不到 1%' : `約 ${Math.round(x * 100)}%`)
+
+/** 選了一張牌時的分析：牌效（打這張對自己好不好）＋放槍風險（只看桌上公開的資訊）。 */
+function DiscardHint({ view, tile }: { view: PlayerView; tile: TileId }) {
+  const analysis = useMemo(() => {
+    const options = analyzeDiscards(toCounts(view.hand), view.seats[HUMAN].melds.length, visibleCounts(view))
+    const reads = readOpponents(view)
+    const danger = new Map(options.map((o) => [o.tile, tileDanger(view, o.tile, reads)]))
+    return { options, reads, danger }
+  }, [view])
+  const { options, reads, danger } = analysis
   const mine = options.find((o) => o.tile === tile)
   const best = options[0]
-  if (!mine) return null
+  const risk = danger.get(tile)
+  if (!mine || !risk) return null
   const isBest = mine.shanten === best.shanten && mine.effectiveCount >= best.effectiveCount
+
+  // 誰可能會胡這張：風險明顯的對手，附上原因
+  const threats = risk.perSeat
+    .filter((d) => d.risk >= 0.02)
+    .sort((a, b) => b.risk - a.risk)
+    .map((d) => {
+      const read = reads.find((r) => r.seat === d.seat)!
+      const aboutTile = d.reasons.length > 0 ? d.reasons.join('、') : '這張沒有特別安全的跡象'
+      const aboutHim = read.reasons[0] ? `。他${read.reasons[0].replace(/^他/, '')}` : ''
+      return `${seatName(d.seat)}（${pct(d.risk)}）：${aboutTile}${aboutHim}`
+    })
+  const noInfo = reads.every((r) => !r.enoughInfo)
+
+  // 風險偏高時，找一張牌效差不多、但更安全的牌
+  let safer: { tile: TileId; risk: number } | null = null
+  if (risk.level === 'mid' || risk.level === 'high') {
+    for (const o of options) {
+      const d = danger.get(o.tile)!
+      if (o.tile === tile || o.shanten > mine.shanten + 1 || d.risk > risk.risk * 0.5) continue
+      if (!safer || d.risk < safer.risk) safer = { tile: o.tile, risk: d.risk }
+    }
+  }
+
   return (
-    <div className={`discard-hint${isBest ? ' good' : ''}`} aria-live="polite">
+    <div className={`discard-hint${isBest ? ' good' : ''} risk-${risk.level}`} aria-live="polite">
       <strong>打出 {tileName(tile)}：</strong>
       {SHANTEN_TEXT(mine.shanten)}，有效進張 {mine.effective.length} 種、還剩 {mine.effectiveCount} 張
       {mine.effective.length > 0 && (
@@ -286,16 +853,79 @@ function DiscardHint({ view, tile }: { view: PlayerView; tile: TileId }) {
       )}
       <div className="hint-compare">
         {isBest
-          ? '這是目前牌效最好的打法之一。'
-          : `比較：打 ${tileName(best.tile)} 是 ${SHANTEN_TEXT(best.shanten)}，還剩 ${best.effectiveCount} 張進張。`}
+          ? '牌效：這是目前牌效最好的打法之一。'
+          : `牌效比較：打 ${tileName(best.tile)} 是 ${SHANTEN_TEXT(best.shanten)}，還剩 ${best.effectiveCount} 張進張。`}
       </div>
+      <div className="hint-risk">
+        <span className={`risk-chip ${risk.level}`}>
+          放槍風險：{RISK_TEXT[risk.level]}（{pct(risk.risk)}）
+        </span>
+        {noInfo ? (
+          <span className="hint-risk-why">大家打出的牌還少，看不出誰聽牌，現在打什麼都不太會放槍。</span>
+        ) : threats.length > 0 ? (
+          <ul className="hint-risk-why">
+            {threats.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        ) : (
+          <span className="hint-risk-why">從牌河看，沒有人特別需要這張。</span>
+        )}
+        {safer && (
+          <div className="hint-risk-why">
+            比較安全的選擇：打 {tileName(safer.tile)}（放槍{pct(safer.risk)}）
+            {options.find((o) => o.tile === safer.tile)!.shanten > mine.shanten ? '，但會慢一步聽牌' : ''}。
+          </div>
+        )}
+      </div>
+      <div className="hint-note">風險只根據大家打出的牌和吃碰推測，不看別人的手牌。</div>
     </div>
   )
 }
 
 // ─────────────────────────── 結算 ───────────────────────────
 
-function ResultDialog({ result, round, onNext }: { result: RoundResult; round: RoundState; onNext: () => void }) {
+/** 「3 分 05 秒」這種寫法。 */
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h} 小時 ${String(m).padStart(2, '0')} 分 ${sec} 秒` : `${m} 分 ${sec} 秒`
+}
+
+/** 右下角：這一將的有效遊玩時間（閒置或切到別的頁面時暫停）。 */
+function PlayClock({ seconds, paused }: { seconds: number; paused: boolean }) {
+  return (
+    <div className={`play-clock${paused ? ' paused' : ''}`} aria-label="這一將的遊玩時間">
+      遊玩時間 <strong>{formatDuration(seconds)}</strong>
+      {paused && <span className="clock-paused">（暫停中：閒置超過一分鐘或切到別的頁面，動一下就繼續）</span>}
+    </div>
+  )
+}
+
+/**
+ * 胡牌是第幾輪（巡）：每個人輪到一次算一輪。
+ * 自摸：胡的人這是第幾次輪到；胡別人的牌：打出那張牌的人這是第幾次出牌。
+ */
+function winTurn(result: Extract<RoundResult, { type: 'win' }>, round: RoundState): number {
+  if (result.discarder === null) return round.players[result.winner].discards + 1
+  return Math.max(1, round.players[result.discarder].discards)
+}
+
+function ResultDialog({
+  result,
+  round,
+  seconds,
+  refilled,
+  onNext,
+}: {
+  result: RoundResult
+  round: RoundState
+  seconds: number | null
+  refilled: boolean
+  onNext: () => void
+}) {
   return (
     <div className="dialog-backdrop">
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="result-title">
@@ -307,6 +937,18 @@ function ResultDialog({ result, round, onNext }: { result: RoundResult; round: R
         ) : (
           <WinDetail result={result} round={round} />
         )}
+        {round.doubled && (
+          <p className="result-doubled">
+            本局台數 ×{round.doubled.factor}：每台 {round.doubled.fromPerTai} → {round.rules.perTai}（所有玩家都適用）
+          </p>
+        )}
+        {refilled && (
+          <p className="result-doubled">
+            籌碼輸光了，已經自動補充到 {formatChips(STARTING_BALANCE)}
+            （個人中心會記錄補充次數）。
+          </p>
+        )}
+        {seconds !== null && <p className="result-time">這一局花了 {formatDuration(seconds)}</p>}
         <div className="dialog-actions">
           <button type="button" className="action primary" onClick={onNext} autoFocus>
             下一局
@@ -331,6 +973,7 @@ function WinDetail({ result, round }: { result: Extract<RoundResult, { type: 'wi
       <h2 id="result-title">
         {seatName(result.winner)} {how}！{iWon ? '🎉' : ''}
       </h2>
+      <p className="result-turn">第 {winTurn(result, round)} 輪胡牌</p>
       <div className="result-hand">
         {winner.melds.map((m, i) => (
           <span className="meld" key={i}>
@@ -369,7 +1012,8 @@ function WinDetail({ result, round }: { result: Extract<RoundResult, { type: 'wi
       <ul className="payments">
         {result.payments.payments.map((p) => (
           <li key={p.payer}>
-            {seatName(p.payer)} 付 <strong>{p.amount}</strong>（{p.tai} 台{p.dealerTai > 0 ? `，含莊家相關 ${p.dealerTai} 台` : ''}）
+            {seatName(p.payer)} 付 <strong>{p.amount}</strong>（{p.tai} 台
+            {p.dealerTai > 0 ? `，含莊家相關 ${p.dealerTai} 台` : ''}）
           </li>
         ))}
       </ul>

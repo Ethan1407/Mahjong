@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { efficiencyBot } from '../bots'
-import { nextHand, playOutMatch, startMatch, type MatchState } from '../match'
+import { dealerFromDice, nextHand, playOutMatch, rollOpening, startMatch, type MatchState } from '../match'
 import type { RoundResult } from '../types'
 
 function endWith(m: MatchState, result: RoundResult): MatchState {
@@ -17,9 +17,29 @@ const winBy = (winner: number, deltas: number[]): RoundResult => ({
   payments: { deltas, payments: [] },
 })
 
+describe('擲骰定莊', () => {
+  it('從擲骰的人開始逆時針數，自己算 1', () => {
+    expect([1, 5, 9, 13, 17].map((n) => dealerFromDice(0, n))).toEqual([0, 0, 0, 0, 0])
+    expect([2, 6, 10, 14, 18].map((n) => dealerFromDice(0, n))).toEqual([1, 1, 1, 1, 1])
+    expect([3, 7, 11, 15].map((n) => dealerFromDice(0, n))).toEqual([2, 2, 2, 2])
+    expect([4, 8, 12, 16].map((n) => dealerFromDice(0, n))).toEqual([3, 3, 3, 3])
+  })
+
+  it('沒指定莊家時，第一局的莊家由骰子決定', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const m = startMatch({ seed, winds: 1 })
+      const o = rollOpening(seed)
+      expect(m.opening).toEqual(o)
+      expect(o.dice.every((d) => d >= 1 && d <= 6)).toBe(true)
+      expect(m.dealer).toBe(o.dealer)
+      expect(m.round!.config.dealer).toBe(o.dealer)
+    }
+  })
+})
+
 describe('一將的流程', () => {
   it('莊家胡或流局連莊，閒家胡下莊', () => {
-    let m = startMatch({ seed: 1, winds: 1 })
+    let m = startMatch({ seed: 1, winds: 1, firstDealer: 0 })
     m = nextHand(endWith(m, { type: 'exhaustive' }))
     expect([m.dealer, m.dealerStreak]).toEqual([0, 1])
     m = nextHand(endWith(m, winBy(0, [300, -100, -100, -100])))

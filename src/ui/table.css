@@ -380,7 +380,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
+  /* 固定最小高度：說明文字換成兩行時，手牌也不會被推動 */
+  min-height: 50px;
 }
 .action-hint {
   display: inline-flex;
@@ -418,12 +419,25 @@
   font-weight: 500;
 }
 
+.hand-wrap {
+  position: relative;
+  max-width: 100%;
+}
+/* 浮在手牌正上方（選到的牌會往上浮起，所以再留一點空間），不佔版面 */
 .discard-hint {
-  max-width: 640px;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  z-index: 15;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
   padding: 8px 14px;
   border-radius: 10px;
-  background: var(--felt-panel);
+  background: #1b2e25;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-left: 4px solid var(--felt-muted);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   font-size: 0.9rem;
 }
 .discard-hint.good {
@@ -435,6 +449,52 @@
 .hint-compare {
   color: var(--felt-muted);
   margin-top: 2px;
+}
+.hint-risk {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.risk-chip {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.risk-chip.safe {
+  background: rgba(120, 200, 150, 0.2);
+  color: #9fe0b5;
+}
+.risk-chip.low {
+  background: rgba(200, 210, 120, 0.2);
+  color: #e0e08f;
+}
+.risk-chip.mid {
+  background: rgba(242, 160, 75, 0.25);
+  color: #f6c27e;
+}
+.risk-chip.high {
+  background: rgba(230, 80, 70, 0.3);
+  color: #ff9b90;
+}
+.hint-risk-why {
+  margin: 4px 0 0;
+  padding-left: 0;
+  list-style: none;
+  color: var(--felt-text);
+  font-size: 0.85rem;
+}
+span.hint-risk-why {
+  margin-left: 8px;
+}
+.hint-note {
+  margin-top: 4px;
+  color: var(--felt-muted);
+  font-size: 0.75rem;
+}
+.discard-hint.risk-high {
+  border-left-color: #e65046;
 }
 
 /* ─────────────────────────── 結算視窗 ─────────────────────────── */
@@ -618,4 +678,749 @@
 .badge.done {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* ─────────────────────────── 輔助功能選單 ─────────────────────────── */
+.assist-menu {
+  position: relative;
+}
+.assist-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--gold);
+  background: rgba(242, 184, 75, 0.15);
+  color: var(--felt-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.assist-button:hover,
+.assist-button[aria-expanded='true'] {
+  background: rgba(242, 184, 75, 0.3);
+}
+.assist-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2a1d05;
+  font-size: 0.75rem;
+}
+.assist-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+.assist-popover h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.assist-intro {
+  margin: 2px 0 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ─────────────────────────── 對手分析（左側） ─────────────────────────── */
+.table-layout {
+  flex: 1;
+  display: flex;
+  width: 100%;
+}
+.table-layout > .table {
+  flex: 1;
+  min-width: 0;
+}
+.insights {
+  flex: 0 0 300px;
+  max-height: calc(100vh - 56px);
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  padding: 12px 12px 24px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--felt-panel);
+}
+.insights-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.insights-header p {
+  margin: 2px 0 10px;
+  font-size: 0.8rem;
+  color: var(--felt-muted);
+}
+.insight-card {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.82rem;
+}
+.insight-card h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+.insight-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--felt-muted);
+}
+.insight-unknown {
+  margin: 4px 0;
+  color: var(--felt-muted);
+}
+.insight-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.insight-label {
+  font-weight: 700;
+  color: var(--gold);
+}
+.insight-basis {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+  color: var(--felt-muted);
+}
+.tenpai-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.tenpai-chip.low {
+  background: rgba(255, 255, 255, 0.15);
+}
+.tenpai-chip.mid {
+  background: var(--gold);
+  color: #2a1d05;
+}
+.tenpai-chip.high {
+  background: var(--win);
+  color: #fff;
+}
+.insight-thought {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* 螢幕不夠寬時，分析改放在牌桌下方 */
+@media (max-width: 1000px) {
+  .table-layout.with-insights {
+    flex-direction: column-reverse;
+  }
+  .insights {
+    flex: none;
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+}
+
+@media (max-width: 640px) {
+  .assist-button {
+    padding: 5px 8px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ─────────────────────────── 擲骰定莊 ─────────────────────────── */
+.dice-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px 48px;
+  text-align: center;
+}
+.dice-intro {
+  max-width: 520px;
+  margin: 0;
+  color: var(--felt-muted);
+}
+.dice-row {
+  display: flex;
+  gap: 16px;
+}
+.die {
+  width: 72px;
+  height: 72px;
+}
+.die.rolling {
+  animation: die-shake 0.16s infinite alternate;
+}
+.die-face {
+  fill: var(--tile-face);
+  stroke: var(--tile-edge);
+  stroke-width: 2;
+}
+.pip {
+  fill: var(--tile-ink);
+}
+.pip.red {
+  fill: var(--man);
+}
+@keyframes die-shake {
+  from {
+    transform: rotate(-8deg) translateY(-2px);
+  }
+  to {
+    transform: rotate(8deg) translateY(2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .die.rolling {
+    animation: none;
+  }
+}
+.dice-total {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.dice-total strong {
+  font-size: 1.6rem;
+  color: var(--gold);
+}
+.dice-count {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 560px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dice-count li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--felt-panel);
+  font-size: 0.85rem;
+}
+.dice-count li span {
+  font-weight: 700;
+  color: var(--felt-muted);
+}
+.dice-count li.final {
+  background: var(--gold);
+  color: #2a1d05;
+  font-weight: 700;
+}
+.dice-count li.final span {
+  color: #2a1d05;
+}
+.dice-result {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.dice-result strong {
+  color: var(--gold);
+}
+.action.big {
+  padding: 12px 36px;
+  font-size: 1.1rem;
+}
+
+/* ─────────────────────────── 台數提示（金框＋說明框） ─────────────────────────── */
+.tile.tai {
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 8px 1px rgba(242, 184, 75, 0.6),
+    0 calc(var(--w) * 0.06) 0 var(--tile-shadow);
+}
+.meld.tai {
+  padding: 2px;
+  border-radius: 6px;
+  outline: 2px solid var(--gold);
+  box-shadow: 0 0 8px 1px rgba(242, 184, 75, 0.5);
+  cursor: help;
+}
+[data-tip] {
+  position: relative;
+  cursor: help;
+}
+.tai-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.tai-legend-title {
+  color: var(--felt-muted);
+}
+.tai-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(242, 184, 75, 0.7);
+  color: var(--felt-text);
+  cursor: help;
+}
+.tai-chip.framed {
+  border-style: solid;
+  border-color: var(--gold);
+  background: rgba(242, 184, 75, 0.15);
+}
+
+/* ─────────────────────────── 發牌動畫 ─────────────────────────── */
+.tile.deal-in {
+  animation: deal-in 0.32s cubic-bezier(0.25, 0.8, 0.35, 1) both;
+}
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24vh) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.deal-in {
+    animation: none;
+  }
+}
+.dealing-text {
+  margin: 4px 0 0;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* ─────────────────────────── 左側面板的關閉按鈕 ─────────────────────────── */
+.insights-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.insights-close {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--felt-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.insights-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ─────────────────────────── 計時 ─────────────────────────── */
+/* 底部留空間給右下角的時間，避免蓋住按鈕 */
+.table-page {
+  padding-bottom: 48px;
+}
+.play-clock {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--felt-text);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.play-clock strong {
+  color: var(--gold);
+}
+.play-clock.paused strong {
+  color: var(--felt-muted);
+}
+.clock-paused {
+  margin-left: 4px;
+  color: var(--felt-muted);
+  font-size: 0.75rem;
+}
+.result-turn {
+  margin: -4px 0 8px;
+  color: var(--gold);
+  font-weight: 700;
+}
+.result-time {
+  margin: 10px 0 0;
+  color: var(--text);
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+/* ─────────────────────────── 局名（對家上方） ─────────────────────────── */
+.header-spacer {
+  flex: 1;
+}
+.round-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--felt-text);
+}
+.doubled-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2a1d05;
+  font-size: 0.75rem;
+}
+
+/* ─────────────────────────── 籌碼與台數加倍 ─────────────────────────── */
+.chips-menu {
+  position: relative;
+}
+.chips-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(242, 184, 75, 0.6);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--felt-text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.chips-button strong {
+  color: var(--gold);
+}
+.doubled-dot {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2a1d05;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.chips-pop {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  width: min(300px, calc(100vw - 24px));
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #1b2e25;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+/* 滑鼠和按鈕之間留一條看不見的橋，移過去時不會關掉 */
+.chips-pop::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
+}
+.chips-menu:hover .chips-pop,
+.chips-menu:focus-within .chips-pop,
+.chips-menu.open .chips-pop {
+  display: block;
+}
+.chips-pop p {
+  margin: 0 0 8px;
+}
+.chips-pop-title {
+  font-weight: 700;
+  color: var(--gold);
+}
+.chips-pop-note {
+  color: var(--felt-muted);
+  font-size: 0.8rem;
+}
+.chips-pop .action {
+  margin-bottom: 8px;
+}
+.result-doubled {
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(242, 184, 75, 0.18);
+  font-weight: 700;
+}
+
+/* 加倍選單：往上打開（你的座位在畫面下方） */
+.chips-menu.up .chips-pop {
+  top: auto;
+  bottom: 100%;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+.chips-menu.up .chips-pop::before {
+  top: auto;
+  bottom: -8px;
+}
+.seat-double .chips-button {
+  padding: 0 8px;
+  border-width: 1px;
+  font-size: inherit;
+}
+.seat-double .seat-score {
+  color: var(--gold);
+}
+.factor-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.factor-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1.5px solid var(--gold);
+  background: rgba(242, 184, 75, 0.12);
+  color: var(--felt-text);
+  font: inherit;
+  cursor: pointer;
+}
+.factor-button strong {
+  font-size: 1.15rem;
+  color: var(--gold);
+}
+.factor-button span {
+  font-size: 0.72rem;
+  color: var(--felt-muted);
+}
+.factor-button:hover,
+.factor-button:focus-visible {
+  background: var(--gold);
+}
+.factor-button:hover strong,
+.factor-button:hover span,
+.factor-button:focus-visible strong,
+.factor-button:focus-visible span {
+  color: #2a1d05;
+}
+
+/* 金色大字動畫（GoldBurst.tsx）：台數 ×N、吃、碰、槓、胡、自摸。在畫面中間放大並淡出。
+   要改長短時，animation 的秒數和 GoldBurst.tsx 的 BURST_MS 一起改。 */
+.gold-burst {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: burst-fade 1.3s ease-out forwards;
+}
+.gold-burst-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: burst-zoom 1.3s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+.gold-burst-text,
+.gold-burst-sub {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #f7c75a;
+  background: linear-gradient(180deg, #fff1b8 0%, #f2b84b 45%, #c9861c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(242, 184, 75, 0.65));
+  line-height: 1.1;
+}
+.gold-burst-text {
+  font-size: clamp(3rem, 14vw, 9rem);
+}
+.gold-burst-sub {
+  font-size: clamp(1.2rem, 5vw, 2.6rem);
+}
+@keyframes burst-zoom {
+  0% {
+    transform: scale(0.3);
+  }
+  35% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1.9);
+  }
+}
+@keyframes burst-fade {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gold-burst-inner {
+    animation: none;
+  }
+}
+.chips-button.static {
+  cursor: default;
+}
+
+/* 吃碰槓胡的選擇框：浮在手牌正上方，不推動手牌 */
+.claim-choices {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  z-index: 16;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #1b2e25;
+  border: 2px solid var(--gold);
+  box-shadow:
+    0 0 0 4px rgba(242, 184, 75, 0.18),
+    0 10px 24px rgba(0, 0, 0, 0.45);
+  animation: claim-pop 0.22s ease-out;
+}
+.claim-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  font-weight: 700;
+  color: var(--felt-text);
+}
+@keyframes claim-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .claim-choices {
+    animation: none;
+  }
+}
+
+/* 最上方橫幅：左（離開、說明）｜右（籌碼、輔助功能）；局名在橫幅裡，水平對齊對家的名牌（--title-x 由程式量出來） */
+.table-header.banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.table-header.banner > .round-banner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.round-banner-text {
+  position: absolute;
+  top: 50%;
+  left: var(--title-x, 50%);
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.banner-side {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.banner-side.right {
+  justify-content: flex-end;
+  gap: 10px;
+}
+.round-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.table-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  /* 手機：局名在橫幅裡獨立一行置中，左右按鈕在上一行 */
+  .table-header.banner {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'left right'
+      'title title';
+    gap: 4px 8px;
+    padding: 8px 10px 6px;
+  }
+  .table-header.banner > .banner-side {
+    grid-area: left;
+  }
+  .table-header.banner > .banner-side.right {
+    grid-area: right;
+    gap: 6px;
+  }
+  .table-header.banner > .round-banner {
+    grid-area: title;
+    position: relative;
+    inset: auto;
+    height: 1.6em;
+    font-size: 1rem;
+  }
+}
+.chips-button,
+.banner-side .assist-trigger,
+.banner-side button {
+  white-space: nowrap;
 }

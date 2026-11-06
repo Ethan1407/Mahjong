@@ -25,6 +25,8 @@ export interface Meld {
   tiles: Tile[]
   /** 吃碰明槓的牌來自哪個座位。 */
   fromSeat?: number
+  /** 這組是在他打了幾張牌的時候吃碰槓的（讀牌用：之前打的牌，之後可能又需要）。 */
+  riverIndex?: number
 }
 
 export const isExposedMeld = (m: Meld) => m.type !== 'ankan'
@@ -34,12 +36,18 @@ export interface RuleConfig {
   base: number
   perTai: number
   allowLiguLigu: boolean
+  /**
+   * 一條龍（同花色 123、456、789 三組順子）的台數；0 = 不算。
+   * 台灣麻將原本沒有這個台型，本遊戲採用國際（國標）麻將「清龍」的 16 台。
+   */
+  straightTai: number
 }
 
 export const DEFAULT_RULES: RuleConfig = {
   base: 100,
   perTai: 20,
   allowLiguLigu: true,
+  straightTai: 16,
 }
 
 export interface WinContext {
@@ -131,7 +139,7 @@ interface FullSet {
   concealed: boolean
 }
 
-function decompositionItems(ctx: WinContext, d: Decomposition, waitCount: number): TaiItem[] {
+function decompositionItems(ctx: WinContext, d: Decomposition, waitCount: number, rules: RuleConfig): TaiItem[] {
   const items: TaiItem[] = []
   const sets: FullSet[] = [
     ...d.sets.map((s) => ({ ...s, concealed: true })),
@@ -156,6 +164,13 @@ function decompositionItems(ctx: WinContext, d: Decomposition, waitCount: number
 
   const pungTiles = sets.filter((s) => s.kind === 'pung').map((s) => s.tile)
   if (pungTiles.length === 5) items.push({ name: '碰碰胡', tai: 4 })
+
+  if (rules.straightTai > 0) {
+    const chows = sets.filter((s) => s.kind === 'chow').map((s) => s.tile)
+    if ([0, 9, 18].some((b) => [b, b + 3, b + 6].every((t) => chows.includes(t)))) {
+      items.push({ name: '一條龍', tai: rules.straightTai })
+    }
+  }
 
   if (
     sets.every((s) => s.kind === 'chow') &&
@@ -212,7 +227,7 @@ export function scoreHand(ctx: WinContext, rules: RuleConfig = DEFAULT_RULES): S
   let best: ScoreResult = invalid
   if (isStandardWin(counts)) {
     for (const d of decompose(counts)) {
-      const items = [...common, ...decompositionItems(ctx, d, waitCount)]
+      const items = [...common, ...decompositionItems(ctx, d, waitCount, rules)]
       const tai = total(items)
       if (!best.valid || tai > best.tai) best = { valid: true, pattern: 'standard', tai, items }
     }
