@@ -12,7 +12,7 @@
  * 時間很重要：他很早打過的牌，之後可能摸到別的牌又需要它（台灣也沒有振聽，打過的牌照樣能胡），
  * 所以越早打的牌、或打完之後他又吃碰過（手牌變了），參考價值越低。
  */
-import { WIND_NAMES, isHonor, rankOf, tileName, type Tile } from '../engine'
+import { SUIT_NAMES, WIND_NAMES, isHonor, rankOf, tileName, type Tile } from '../engine'
 import { visibleCounts, type PlayerView, type SeatView } from '../game'
 
 export interface OpponentRead {
@@ -58,7 +58,6 @@ export interface TileDanger {
  */
 export const HIT_SCALE = 0.3
 
-const SUIT_NAMES = ['萬', '筒', '條']
 const MELD_VERB: Record<string, string> = { chow: '吃', pung: '碰', minkan: '槓', kakan: '加槓', ankan: '暗槓' }
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x))
 const suitOfTile = (t: Tile) => Math.floor(t / 9)

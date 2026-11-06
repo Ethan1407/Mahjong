@@ -22,7 +22,8 @@ export type GameEvent =
   | { type: 'flower'; seat: Seat; tile: Tile }
   | { type: 'draw'; seat: Seat; tile: Tile; replacement: boolean }
   | { type: 'discard'; seat: Seat; tile: Tile }
-  | { type: 'chow' | 'pung' | 'minkan'; seat: Seat; from: Seat; tiles: Tile[] }
+  /** claimed：從別人那裡拿來的那一張（吃的時候是上家打出的牌）。 */
+  | { type: 'chow' | 'pung' | 'minkan'; seat: Seat; from: Seat; tiles: Tile[]; claimed: Tile }
   | { type: 'ankan' | 'kakan'; seat: Seat; tile: Tile }
   | { type: 'win'; seat: Seat; from: Seat | null; tile: Tile | null }
   | { type: 'exhaustive' }

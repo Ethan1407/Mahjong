@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { DIFFICULTIES } from '../difficulty'
 import { loadStats, percent, resetStats, type StatLevel } from '../profile'
-import { STAKES, STARTING_BALANCE, formatChips, formatMoney, loadWallet } from '../wallet'
+import { STAKES, STARTING_BALANCE, formatChips, formatMoney, loadWallet, netChips as netOf } from '../wallet'
 import { ChipChart } from './ChipChart'
-import { formatDuration } from './TableScreen'
+import { formatDuration } from './format'
+import { DecorMenu } from './DecorMenu'
 
 const LEVELS: StatLevel[] = ['easy', 'normal', 'hard']
 const moneyClass = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : undefined)
@@ -12,10 +13,10 @@ const dateText = (t: number | null) =>
 
 export function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [stats, setStats] = useState(loadStats)
-  const wallet = loadWallet()
+  // 只在進入畫面時讀一次（原本每次重繪都重讀 localStorage）
+  const [wallet] = useState(loadWallet)
   const refills = wallet.refills ?? 0
-  /** 真正的輸贏：扣掉起始籌碼和補充的籌碼。 */
-  const netChips = wallet.balance - STARTING_BALANCE * (1 + refills)
+  const netChips = netOf(wallet)
   const s = stats
   const losses = s.hands - s.wins - s.draws
 
@@ -31,6 +32,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
     { label: '平均胡牌台數', value: s.wins > 0 ? `${(s.totalTai / s.wins).toFixed(1)} 台` : '—' },
     { label: '最快胡牌', value: s.fastestTurn !== null ? `第 ${s.fastestTurn} 輪` : '—' },
     { label: '目前籌碼', value: formatChips(wallet.balance), note: `起始 ${formatChips(STARTING_BALANCE)}，實際累計 ${formatMoney(netChips)}` },
+    { label: '商店花費', value: formatChips(wallet.spent ?? 0), note: '買特效等裝飾花的籌碼（不算輸贏）' },
     { label: '自動補充次數', value: `${refills} 次`, note: `籌碼輸光時自動補充 ${formatChips(STARTING_BALANCE)}` },
     { label: '沒胡的局', value: `${Math.max(0, losses)} 局`, note: '別人胡牌（不含流局）' },
   ]
@@ -38,6 +40,9 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
   return (
     <main className="setup profile">
       <header className="setup-header profile-header">
+        <div className="header-tools">
+          <DecorMenu />
+        </div>
         <button type="button" className="profile-back" onClick={onBack}>
           ← 返回
         </button>
@@ -61,7 +66,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
       <section aria-labelledby="chips-title">
         <h2 id="chips-title">籌碼變化</h2>
         <p className="section-note">
-          每打完一局有賭注的對局記一筆。目前 {formatChips(wallet.balance)}，自動補充過 {refills} 次，扣掉補充後實際累計{' '}
+          每打完一局有賭注的對局記一筆。目前 {formatChips(wallet.balance)}，自動補充過 {refills} 次，在商店花了 {formatChips(wallet.spent ?? 0)}；扣掉補充、不算商店花費的實際累計{' '}
           {formatMoney(netChips)}。
         </p>
         <ChipChart history={wallet.history ?? []} />

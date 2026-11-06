@@ -4,6 +4,7 @@
 import { decompose, isLiguLigu, isStandardWin, setsNeeded, waits, type Decomposition } from './hand'
 import {
   DRAGONS,
+  FLOWER_SETS,
   WINDS,
   WIND_NAMES,
   isDragon,
@@ -87,13 +88,9 @@ const total = (items: TaiItem[]) => items.reduce((a, b) => a + b.tai, 0)
 function flowerItems(flowers: Tile[], seatWind: number): TaiItem[] {
   const items: TaiItem[] = []
   const own = seatFlowers(seatWind)
-  const sets: [Tile[], string][] = [
-    [[34, 35, 36, 37], '花槓（春夏秋冬）'],
-    [[38, 39, 40, 41], '花槓（梅蘭竹菊）'],
-  ]
-  for (const [set, name] of sets) {
+  for (const { tiles: set, label } of FLOWER_SETS) {
     if (set.every((f) => flowers.includes(f))) {
-      items.push({ name, tai: 2 })
+      items.push({ name: `花槓（${label}）`, tai: 2 })
     } else {
       for (const f of own) if (set.includes(f) && flowers.includes(f)) items.push({ name: `正花（${tileName(f)}）`, tai: 1 })
     }

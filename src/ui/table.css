@@ -1,10 +1,19 @@
 /* ─────────────────────────── 牌桌色彩 ─────────────────────────── */
 :root {
-  --felt: #2d6a4f;
-  --felt-dark: #245a42;
+  /* 明亮模式的牌桌：比較深的綠，讓淺色字、灰綠字和金色字的對比都至少 4.5:1 */
+  --felt: #22573f;
+  --felt-dark: #1b4733;
   --felt-text: #f1f7f3;
-  --felt-muted: #b9d3c4;
+  --felt-muted: #c3dccf;
   --felt-panel: rgba(0, 0, 0, 0.16);
+  /* 牌桌上的浮動卡片（打牌分析、吃碰選擇、加倍選單） */
+  --felt-card: #1b2e25;
+  --felt-card-head: #22382d;
+  /* 牌背 */
+  --back-1: #3f9b72;
+  --back-2: #23714f;
+  --back-edge: #17533a;
+  --back-shadow: #103d2a;
   --gold: #f2b84b;
   --win: #c2410c;
   --tile-face: #fffdf6;
@@ -43,6 +52,38 @@
   --tile-face-2: #ddd4bc;
   --tile-edge: #b3a785;
   --tile-shadow: #7f7458;
+}
+
+/* 深海藍牌桌（裝飾選單切換）。放在綠色的設定後面，而且黑暗模式的選擇器更具體，才會蓋過去 */
+:root[data-table='blue'] {
+  --felt: #1f4e73;
+  --felt-dark: #183e5c;
+  --felt-text: #f1f7f3;
+  --felt-muted: #c6d9ea;
+  --felt-card: #162a3d;
+  --felt-card-head: #1d3550;
+  --back-1: #4a86c0;
+  --back-2: #275f94;
+  --back-edge: #1a476f;
+  --back-shadow: #10314f;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-table='blue']:not([data-theme='light']) {
+    --felt: #163049;
+    --felt-dark: #0f2236;
+    --felt-text: #e7eef5;
+    --felt-muted: #a7bccf;
+    --felt-card: #132536;
+    --felt-card-head: #1a3047;
+  }
+}
+:root[data-theme='dark'][data-table='blue'] {
+  --felt: #163049;
+  --felt-dark: #0f2236;
+  --felt-text: #e7eef5;
+  --felt-muted: #a7bccf;
+  --felt-card: #132536;
+  --felt-card-head: #1a3047;
 }
 
 /* ─────────────────────────── 牌 ─────────────────────────── */
@@ -133,9 +174,9 @@
 }
 
 .tile-back {
-  background: linear-gradient(#3f9b72, #23714f);
-  border-color: #17533a;
-  box-shadow: 0 calc(var(--w) * 0.06) 0 #103d2a;
+  background: linear-gradient(var(--back-1), var(--back-2));
+  border-color: var(--back-edge);
+  box-shadow: 0 calc(var(--w) * 0.06) 0 var(--back-shadow);
 }
 
 .tile.clickable {
@@ -434,7 +475,7 @@
   max-width: min(640px, calc(100vw - 32px));
   padding: 8px 14px;
   border-radius: 10px;
-  background: #1b2e25;
+  background: var(--felt-card);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-left: 4px solid var(--felt-muted);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -557,7 +598,7 @@
 .compare-table th {
   position: sticky;
   top: 0;
-  background: #22382d;
+  background: var(--felt-card-head);
   color: var(--felt-muted);
   font-weight: 600;
   text-align: left;
@@ -1245,7 +1286,8 @@ span.hint-risk-why {
 }
 .result-turn {
   margin: -4px 0 8px;
-  color: var(--gold);
+  /* 對話框是 --surface 底色：明亮模式要用深一點的金色才看得清楚 */
+  color: var(--gold-text);
   font-weight: 700;
 }
 .result-time {
@@ -1315,7 +1357,7 @@ span.hint-risk-why {
   margin-top: 6px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: #1b2e25;
+  background: var(--felt-card);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
   font-size: 0.88rem;
@@ -1427,13 +1469,28 @@ span.hint-risk-why {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  animation: burst-fade 1.3s ease-out forwards;
+  overflow: hidden;
+  /* 整體持續多久由 --burst-ms 決定（GoldBurst.tsx 的 EFFECT_MS）；大字本身固定 1.3 秒 */
+  animation: burst-hold var(--burst-ms, 1.3s) linear forwards;
 }
 .gold-burst-inner {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  animation: burst-zoom 1.3s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  animation:
+    burst-zoom 1.3s cubic-bezier(0.2, 0.9, 0.3, 1) forwards,
+    burst-fade 1.3s ease-out forwards;
+}
+@keyframes burst-hold {
+  0%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 .gold-burst-text,
 .gold-burst-sub {
@@ -1498,7 +1555,7 @@ span.hint-risk-why {
   max-width: min(640px, calc(100vw - 32px));
   padding: 10px 14px;
   border-radius: 12px;
-  background: #1b2e25;
+  background: var(--felt-card);
   border: 2px solid var(--gold);
   box-shadow:
     0 0 0 4px rgba(242, 184, 75, 0.18),
@@ -1614,7 +1671,7 @@ span.hint-risk-why {
   color: var(--text);
 }
 .dialog .action:not(.primary):not(.win):hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--badge-bg);
 }
 .pay-formula {
   margin-left: 6px;
@@ -1627,4 +1684,931 @@ span.hint-risk-why {
   color: var(--text);
   opacity: 0.6;
   font-size: 0.85em;
+}
+
+/* ─────────────────────────── 商店特效（吃碰槓胡的大字） ─────────────────────────── */
+/* 每種特效：改大字的漸層與光暈，再加上一層背景動畫（.burst-layer，在 GoldBurst.tsx 產生）。 */
+.burst-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.burst-layer i,
+.burst-layer b {
+  position: absolute;
+  display: block;
+}
+
+/* ── 烈焰：畫面下方竄起逼真的火焰，約 1 秒 ── */
+/* 很多團火焰粒子持續往上竄、邊升邊縮小變淡；外層暗紅、中層橘、核心黃白，
+   再用 SVG 亂流濾鏡（#fx-fire-distort）扭成一條條跳動的火舌。上面飄著煙和火星。 */
+.burst-fire :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(180deg, #fff6c8 0%, #ffb02e 40%, #ff5a14 70%, #c41d0a 100%);
+  filter: drop-shadow(0 0 8px rgba(255, 160, 40, 0.9)) drop-shadow(0 6px 24px rgba(255, 70, 10, 0.75));
+}
+.burst-fire .gold-burst-text {
+  animation: burst-flicker 0.11s steps(2) infinite alternate;
+}
+.fx-defs {
+  position: absolute;
+}
+.fx-fire-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70vh;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(255, 120, 20, 0.55) 0%, rgba(255, 60, 0, 0.25) 45%, rgba(255, 60, 0, 0) 75%),
+    linear-gradient(to top, rgba(120, 20, 0, 0.45) 0%, rgba(120, 20, 0, 0) 40%);
+  animation: fire-glow 1.3s ease-out forwards;
+}
+.fx-fire-body {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: 0;
+  height: 75vh;
+  filter: url(#fx-fire-distort);
+  animation: fire-body 1.3s ease-out forwards;
+}
+.fx-fire-base {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: -9vh;
+  height: 24vh;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 100%, #fffbe0 0%, #ffd04a 25%, #ff7a12 50%, rgba(220, 40, 0, 0.6) 66%, rgba(200, 30, 0, 0) 76%);
+}
+.fx-fp {
+  bottom: -5vh;
+  border-radius: 50% 50% 45% 45%;
+  opacity: 0;
+  animation-name: fp-rise;
+  animation-timing-function: cubic-bezier(0.3, 0.1, 0.6, 1);
+  animation-iteration-count: infinite;
+}
+.fx-fp.outer {
+  background: radial-gradient(circle at 50% 60%, rgba(255, 80, 10, 0.85) 0%, rgba(205, 25, 0, 0.6) 38%, rgba(150, 0, 0, 0) 70%);
+}
+.fx-fp.mid {
+  background: radial-gradient(circle at 50% 60%, rgba(255, 185, 40, 0.95) 0%, rgba(255, 115, 0, 0.7) 40%, rgba(255, 80, 0, 0) 70%);
+}
+.fx-fp.core {
+  background: radial-gradient(circle at 50% 60%, rgba(255, 255, 238, 1) 0%, rgba(255, 236, 140, 0.95) 32%, rgba(255, 190, 40, 0) 70%);
+}
+.fx-smoke-wrap {
+  position: absolute;
+  inset: 0;
+}
+.fx-smoke {
+  bottom: 30vh;
+  margin-left: -80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(70, 60, 55, 0.32) 0%, rgba(70, 60, 55, 0.12) 45%, rgba(70, 60, 55, 0) 70%);
+  filter: blur(6px);
+  opacity: 0;
+  animation: smoke-rise 1.1s ease-out forwards;
+}
+.fx-ember {
+  bottom: 12vh;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffbe0 0%, #ffb02e 50%, rgba(255, 90, 0, 0) 72%);
+  box-shadow: 0 0 6px 2px rgba(255, 140, 20, 0.6);
+  opacity: 0;
+  animation: ember-rise 1.1s ease-out forwards;
+}
+@keyframes fire-glow {
+  0% {
+    opacity: 0;
+  }
+  18%,
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes fire-body {
+  0% {
+    transform: translateY(45%);
+    opacity: 0.4;
+  }
+  18% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  74% {
+    transform: translateY(2%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(40%);
+    opacity: 0;
+  }
+}
+@keyframes fp-rise {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--dx, 0), var(--rise, -30vh)) scale(0.15);
+    opacity: 0;
+  }
+}
+@keyframes smoke-rise {
+  0% {
+    transform: translate(0, 0) scale(0.5);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), -40vh) scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes ember-rise {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), -62vh) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* ── 翡翠：上面掉下來的寶石 ── */
+.burst-jade :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(180deg, #eafff4 0%, #4fd39a 50%, #137a52 100%);
+  filter: drop-shadow(0 4px 22px rgba(79, 211, 154, 0.8));
+}
+.fx-gem {
+  top: -8vh;
+  clip-path: polygon(50% 0%, 100% 32%, 80% 100%, 20% 100%, 0% 32%);
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.85) 0 18%, rgba(255, 255, 255, 0) 19%),
+    linear-gradient(160deg, #c9ffe4 0%, #5fe0a6 35%, #16a066 65%, #0a5636 100%);
+  animation: gem-fall var(--dur, 1.4s) cubic-bezier(0.45, 0, 0.85, 0.55) forwards;
+}
+.fx-gem.alt {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.9) 0 22%, rgba(255, 255, 255, 0) 23%),
+    linear-gradient(150deg, #f4fff9 0%, #9ff0c8 35%, #2fbf7f 65%, #0f6a43 100%);
+}
+@keyframes gem-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: translateY(118vh) rotate(var(--r, 180deg));
+    opacity: 0.9;
+    filter: brightness(1);
+  }
+}
+
+/* ── 櫻吹雪：大片花瓣，左右飄著慢慢落下 ── */
+.burst-sakura :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(180deg, #fff0f5 0%, #ff9cc2 50%, #d6457f 100%);
+  filter: drop-shadow(0 4px 20px rgba(255, 130, 180, 0.8));
+}
+.fx-petal {
+  top: -8vh;
+  animation: petal-fall var(--dur, 2.4s) linear forwards;
+}
+.fx-petal b {
+  position: static;
+  border-radius: 85% 0 85% 0;
+  background: linear-gradient(135deg, #fff2f7 0%, #ffb3cf 45%, #f06292 100%);
+  box-shadow: inset -2px -2px 4px rgba(214, 69, 127, 0.35);
+  animation: petal-spin 1s linear infinite;
+}
+@keyframes petal-fall {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(var(--sway), 38vh);
+  }
+  50% {
+    transform: translate(calc(var(--sway) * -1), 76vh);
+  }
+  75% {
+    transform: translate(var(--sway), 114vh);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), 152vh);
+    opacity: 0.7;
+  }
+}
+@keyframes petal-spin {
+  from {
+    transform: rotate3d(1, 0.5, 0.2, 0deg);
+  }
+  to {
+    transform: rotate3d(1, 0.5, 0.2, 360deg);
+  }
+}
+
+/* ── 雷霆：黃色電光、連續閃光、劈下來的閃電、大力震動 ── */
+.burst-thunder :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(180deg, #ffffff 0%, #fff27a 35%, #ffc400 70%, #ff9500 100%);
+  filter: drop-shadow(0 0 10px rgba(255, 230, 80, 1)) drop-shadow(0 0 30px rgba(255, 190, 0, 0.8));
+}
+.burst-thunder .gold-burst-inner {
+  animation:
+    burst-zoom 1.3s cubic-bezier(0.2, 0.9, 0.3, 1) forwards,
+    burst-fade 1.3s ease-out forwards,
+    burst-shake 0.22s linear 4;
+}
+.fx-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 35%, #fffef0 0%, #fff19a 50%, #ffd23f 100%);
+  opacity: 0;
+  animation: thunder-flash 1.1s ease-out forwards;
+}
+.fx-bolts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fx-bolt {
+  opacity: 0;
+  animation: bolt-strike 0.55s ease-out forwards;
+}
+.fx-bolt polyline {
+  fill: none;
+  stroke-linejoin: miter;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.fx-bolt-glow {
+  stroke: #ffd84d;
+  stroke-width: 16;
+  stroke-opacity: 0.55;
+  filter: blur(4px);
+}
+.fx-bolt-core {
+  stroke: #fffbe6;
+  stroke-width: 4;
+}
+@keyframes burst-shake {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  20% {
+    translate: -18px 6px;
+    rotate: -2deg;
+  }
+  40% {
+    translate: 16px -8px;
+    rotate: 2deg;
+  }
+  60% {
+    translate: -12px -4px;
+    rotate: -1deg;
+  }
+  80% {
+    translate: 10px 6px;
+    rotate: 1deg;
+  }
+}
+@keyframes thunder-flash {
+  0% {
+    opacity: 0.95;
+  }
+  8% {
+    opacity: 0;
+  }
+  16% {
+    opacity: 0.8;
+  }
+  26% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.55;
+  }
+  52%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes bolt-strike {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  30% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── 彩虹：由左到右畫出一道彩虹，再淡出 ── */
+.burst-rainbow :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #f9f871, #5be37d, #4fc3ff, #8f7bff, #ff5fd2, #ff5f6d);
+  background-size: 200% 100%;
+  filter: drop-shadow(0 4px 20px rgba(255, 255, 255, 0.55));
+  animation: burst-rainbow 1.3s linear forwards;
+}
+.fx-rainbow {
+  animation: rainbow-life 2s ease-in-out forwards;
+}
+.fx-arc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(96vw, 1100px);
+  transform: translate(-50%, -64%);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.45));
+}
+.fx-arc path {
+  fill: none;
+  stroke-width: 6.5;
+  stroke-linecap: round;
+  stroke-opacity: 0.9;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: arc-draw 0.95s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+@keyframes burst-rainbow {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+@keyframes arc-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rainbow-life {
+  0%,
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── 鯨魚：依動作表演（吃：張嘴吃牌、碰：撞飛牌、槓：舉麻將槓鈴、胡：躍出水面噴水） ── */
+/* 大字放在上方、小一點，把畫面中間留給鯨魚表演 */
+.burst-whale :is(.gold-burst-text, .gold-burst-sub) {
+  background-image: linear-gradient(180deg, #f2fbff 0%, #8fd3ff 45%, #2f7fe0 100%);
+  filter: drop-shadow(0 0 8px rgba(120, 200, 255, 0.9)) drop-shadow(0 4px 18px rgba(30, 110, 220, 0.7));
+}
+.burst-whale .gold-burst-inner {
+  align-self: flex-start;
+  margin-top: 6vh;
+  animation:
+    whale-text 1.3s cubic-bezier(0.2, 0.9, 0.3, 1) forwards,
+    burst-fade 1.3s ease-out forwards;
+}
+.burst-whale .gold-burst-text {
+  font-size: clamp(2.6rem, 10vw, 6rem);
+}
+@keyframes whale-text {
+  0% {
+    transform: scale(0.3);
+  }
+  30% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1.25);
+  }
+}
+
+.fx-whale {
+  /* 鯨魚的寬度；位置都用它的倍數算，換螢幕大小比例也一樣 */
+  --ww: min(42vw, 360px);
+  /* 舉重鯨魚的寬度 */
+  --kw: min(34vw, 260px);
+}
+.whale-pos,
+.whale-tile {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+}
+.whale-center {
+  translate: -50% -50%;
+}
+.whale-body {
+  position: relative;
+  width: var(--ww);
+}
+.whale-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  animation: whale-bob 0.5s ease-in-out infinite alternate;
+}
+.whale-tail {
+  transform-box: view-box;
+  transform-origin: 44px 67px;
+  animation: whale-tail 0.3s ease-in-out infinite alternate;
+}
+.whale-jaw {
+  transform-box: view-box;
+  transform-origin: 148px 73px;
+}
+.whale-tile .tile {
+  --w: clamp(44px, calc(var(--ww) * 0.2), 70px);
+}
+.whale-bubble {
+  bottom: -30px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 235, 255, 0.85);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9) 0 12%, rgba(160, 215, 255, 0.25) 13% 60%, rgba(160, 215, 255, 0.05) 61%);
+  opacity: 0;
+  animation: bubble-rise 1.6s ease-in forwards;
+}
+@keyframes whale-bob {
+  from {
+    translate: 0 -2%;
+  }
+  to {
+    translate: 0 2%;
+  }
+}
+@keyframes whale-tail {
+  from {
+    rotate: -10deg;
+  }
+  to {
+    rotate: 10deg;
+  }
+}
+@keyframes bubble-rise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(12px, -80vh);
+    opacity: 0;
+  }
+}
+
+/* 吃：上家打出的牌落到右邊 → 鯨魚游過來張大嘴 → 把牌吸進嘴裡 → 嚼一嚼 → 游走 */
+.whale-act-chow .whale-pos {
+  animation: chow-whale 2.3s ease-in-out forwards;
+}
+.whale-act-chow .whale-jaw {
+  animation: chow-jaw 2.3s ease-in-out forwards;
+}
+.whale-act-chow .whale-tile {
+  animation: chow-tile 2.3s ease-in-out forwards;
+}
+@keyframes chow-whale {
+  0% {
+    transform: translateX(calc(-50vw - var(--ww)));
+  }
+  34% {
+    transform: translateX(calc(var(--ww) * -0.24));
+  }
+  58% {
+    transform: translateX(calc(var(--ww) * -0.2));
+    scale: 1 1;
+  }
+  62% {
+    scale: 1.05 0.94;
+  }
+  66% {
+    scale: 0.97 1.04;
+  }
+  70% {
+    scale: 1.04 0.96;
+  }
+  74% {
+    transform: translateX(calc(var(--ww) * -0.2));
+    scale: 1 1;
+  }
+  100% {
+    transform: translate(calc(50vw + var(--ww)), -6vh);
+  }
+}
+@keyframes chow-jaw {
+  0%,
+  28% {
+    rotate: 0deg;
+  }
+  40%,
+  52% {
+    rotate: 32deg;
+  }
+  57% {
+    rotate: 0deg;
+  }
+  62% {
+    rotate: 12deg;
+  }
+  66% {
+    rotate: 0deg;
+  }
+  70% {
+    rotate: 10deg;
+  }
+  74%,
+  100% {
+    rotate: 0deg;
+  }
+}
+@keyframes chow-tile {
+  /* 從左上方（上家那邊）落下來 */
+  0% {
+    transform: translate(calc(var(--ww) * 0.32 - 30vw), -40vh) rotate(-40deg);
+    opacity: 0;
+  }
+  16% {
+    transform: translate(calc(var(--ww) * 0.32), 0) rotate(-6deg);
+    opacity: 1;
+  }
+  20% {
+    transform: translate(calc(var(--ww) * 0.32), -2vh) rotate(4deg);
+  }
+  24%,
+  42% {
+    transform: translate(calc(var(--ww) * 0.32), 0) rotate(0deg);
+    scale: 1;
+  }
+  54% {
+    transform: translate(calc(var(--ww) * 0.18), calc(var(--ww) * 0.05)) rotate(25deg);
+    scale: 0.3;
+    opacity: 1;
+  }
+  56%,
+  100% {
+    transform: translate(calc(var(--ww) * 0.18), calc(var(--ww) * 0.05));
+    scale: 0.2;
+    opacity: 0;
+  }
+}
+
+/* 碰：牌放在右邊 → 鯨魚加速衝過去 → 用頭撞（出現撞擊星形） → 牌旋轉飛出畫面 → 鯨魚退一下再游走 */
+.whale-act-pung .whale-pos {
+  animation: pung-whale 2.3s forwards;
+}
+.whale-act-pung .whale-tile {
+  animation: pung-tile 2.3s forwards;
+}
+.whale-impact {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: calc(var(--ww) * 0.5);
+  margin-left: calc(var(--ww) * 0.06);
+  translate: 0 -50%;
+  fill: #fff27a;
+  stroke: #ffb300;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 12px rgba(255, 220, 80, 0.9));
+  opacity: 0;
+  animation: pung-impact 2.3s forwards;
+}
+@keyframes pung-whale {
+  0% {
+    transform: translateX(calc(-50vw - var(--ww)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6);
+  }
+  36% {
+    transform: translateX(calc(var(--ww) * -0.2)) rotate(0deg);
+    animation-timing-function: ease-out;
+  }
+  44% {
+    transform: translateX(calc(var(--ww) * -0.34)) rotate(-6deg);
+  }
+  60% {
+    transform: translateX(calc(var(--ww) * -0.28)) rotate(0deg);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translate(calc(50vw + var(--ww)), -4vh);
+  }
+}
+@keyframes pung-tile {
+  0% {
+    transform: translate(calc(var(--ww) * 0.32), 0);
+    scale: 0;
+  }
+  10% {
+    scale: 1.15;
+  }
+  16%,
+  36% {
+    transform: translate(calc(var(--ww) * 0.32), 0) rotate(0deg);
+    scale: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  100% {
+    transform: translate(calc(var(--ww) * 0.32 + 55vw), -75vh) rotate(1080deg);
+    scale: 0.8;
+  }
+}
+@keyframes pung-impact {
+  0%,
+  35% {
+    transform: scale(0.2) rotate(0deg);
+    opacity: 0;
+  }
+  38% {
+    opacity: 1;
+  }
+  48% {
+    transform: scale(1.3) rotate(25deg);
+    opacity: 1;
+  }
+  60%,
+  100% {
+    transform: scale(1.6) rotate(35deg);
+    opacity: 0;
+  }
+}
+
+/* 槓：鯨魚站起來，舉起四張牌做成的槓鈴（兩邊各兩張）舉三下，最後高舉，旁邊閃閃發光 */
+.whale-kong {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: var(--kw);
+  translate: -50% -50%;
+  animation: kong-enter 2.3s ease-out forwards;
+}
+.whale-kong .whale-svg {
+  animation: kong-squat 2.3s ease-in-out forwards;
+  transform-origin: 50% 100%;
+}
+.whale-arm {
+  stroke: #2f68b8;
+  stroke-width: 16;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  transform-box: view-box;
+  animation: kong-arm 2.3s ease-in-out forwards;
+}
+.whale-barbell {
+  position: absolute;
+  left: -34%;
+  right: -34%;
+  top: calc(var(--kw) * 0.22);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  translate: 0 -50%;
+  animation: kong-bar 2.3s ease-in-out forwards;
+}
+/* 槓鈴的鐵桿 */
+.whale-barbell::before {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 50%;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 4px;
+  background: linear-gradient(#f2f5f9, #8a96a6);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.whale-plates {
+  position: relative;
+  display: flex;
+  gap: 2px;
+}
+.whale-plates .tile {
+  --w: clamp(26px, calc(var(--kw) * 0.17), 46px);
+}
+.whale-sparkle {
+  position: absolute;
+  color: #ffe36b;
+  font-size: clamp(1.2rem, 4vw, 2.2rem);
+  text-shadow: 0 0 10px rgba(255, 220, 80, 0.9);
+  opacity: 0;
+  animation: kong-sparkle 2.3s ease-out forwards;
+}
+.whale-sparkle.s1 {
+  left: -18%;
+  top: -14%;
+}
+.whale-sparkle.s2 {
+  right: -20%;
+  top: -6%;
+  animation-delay: 0.1s;
+}
+.whale-sparkle.s3 {
+  right: -8%;
+  top: 30%;
+  animation-delay: 0.2s;
+}
+/* 0% 準備 → 舉起 → 放下 → 舉起 → 放下 → 最後高舉不放 */
+@keyframes kong-bar {
+  0%,
+  6% {
+    transform: translateY(calc(var(--kw) * 0.19));
+  }
+  16% {
+    transform: translateY(0);
+  }
+  27% {
+    transform: translateY(calc(var(--kw) * 0.19));
+  }
+  38% {
+    transform: translateY(0);
+  }
+  49% {
+    transform: translateY(calc(var(--kw) * 0.19));
+  }
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes kong-arm {
+  0%,
+  6% {
+    scale: 1 0.55;
+  }
+  16% {
+    scale: 1 1;
+  }
+  27% {
+    scale: 1 0.55;
+  }
+  38% {
+    scale: 1 1;
+  }
+  49% {
+    scale: 1 0.55;
+  }
+  60%,
+  100% {
+    scale: 1 1;
+  }
+}
+@keyframes kong-squat {
+  0%,
+  6%,
+  27%,
+  49% {
+    scale: 1.04 0.95;
+  }
+  16%,
+  38%,
+  60%,
+  100% {
+    scale: 1 1;
+  }
+}
+@keyframes kong-enter {
+  0% {
+    transform: translateY(30vh) scale(0.6);
+    opacity: 0;
+  }
+  8% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  85% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(6vh) scale(0.95);
+    opacity: 0;
+  }
+}
+@keyframes kong-sparkle {
+  0%,
+  60% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.3) rotate(45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8) rotate(90deg);
+    opacity: 0;
+  }
+}
+
+/* 胡：鯨魚從下方躍出水面，在最高點從噴氣孔噴水，再落回去；起跳處濺起水花 */
+.whale-act-win .whale-pos {
+  animation: win-leap 2.3s cubic-bezier(0.3, 0.6, 0.6, 1) forwards;
+}
+.whale-spout,
+.whale-splash {
+  position: absolute;
+}
+.whale-spout {
+  left: 66%;
+  top: 16%;
+}
+.whale-splash {
+  left: 32%;
+  bottom: 4vh;
+}
+.whale-spout i,
+.whale-splash i {
+  width: 10px;
+  height: 14px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0 15%, #9fdcff 40%, #3a9cf0 100%);
+  opacity: 0;
+}
+.whale-spout i {
+  animation: spout-drop 0.9s ease-out forwards;
+}
+.whale-splash i {
+  animation: spout-drop 0.8s ease-out forwards;
+}
+@keyframes win-leap {
+  0% {
+    transform: translate(-26vw, 55vh) rotate(-42deg);
+  }
+  42% {
+    transform: translate(-4vw, -4vh) rotate(-10deg);
+  }
+  56% {
+    transform: translate(5vw, -7vh) rotate(6deg);
+  }
+  100% {
+    transform: translate(30vw, 60vh) rotate(52deg);
+  }
+}
+@keyframes spout-drop {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), var(--dy, -100px)) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes burst-flicker {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burst-layer {
+    display: none;
+  }
+  .burst-fire .gold-burst-text,
+  .burst-thunder .gold-burst-inner,
+  .burst-rainbow :is(.gold-burst-text, .gold-burst-sub) {
+    animation: none;
+  }
 }

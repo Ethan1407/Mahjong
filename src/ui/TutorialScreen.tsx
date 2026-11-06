@@ -11,6 +11,7 @@ import {
   type TutorialAction,
 } from '../tutorial'
 import { getVariant, type VariantId } from '../variants'
+import { DecorMenu } from './DecorMenu'
 import { Tile } from './Tile'
 import './table.css'
 
@@ -62,6 +63,9 @@ export function TutorialScreen({ variant, onExit }: { variant: VariantId; onExit
   return (
     <main className="setup">
       <header className="setup-header">
+        <div className="header-tools">
+          <DecorMenu />
+        </div>
         <h1>{v.name}教學</h1>
         <p>從入門開始，一步一步學會打牌。完成的課程會打勾。</p>
       </header>
@@ -161,6 +165,7 @@ function LessonPlayer({
         <span className="tutorial-progress">
           {lesson.title} · 第 {stepIdx + 1} / {lesson.steps.length} 步
         </span>
+        <DecorMenu />
       </header>
 
       <h1 className="tutorial-title">{step.title}</h1>

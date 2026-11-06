@@ -24,6 +24,15 @@ export const TILE_NAMES: readonly string[] = [
 
 export const WIND_NAMES = ['東', '南', '西', '北'] as const
 
+/** 數牌花色的名稱（0 萬、1 筒、2 條）。 */
+export const SUIT_NAMES = ['萬', '筒', '條'] as const
+
+/** 兩套花牌：集齊一整套是花槓。 */
+export const FLOWER_SETS: readonly { tiles: readonly Tile[]; label: string }[] = [
+  { tiles: [34, 35, 36, 37], label: '春夏秋冬' },
+  { tiles: [38, 39, 40, 41], label: '梅蘭竹菊' },
+]
+
 export type SuitKind = 'man' | 'pin' | 'sou' | 'honor' | 'flower'
 
 export const isSuited = (t: Tile) => t >= 0 && t < 27

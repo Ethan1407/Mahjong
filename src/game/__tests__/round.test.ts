@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng, parseTiles } from '../../engine'
 import { randomBot, efficiencyBot } from '../bots'
-import { applyAction, canDouble, doubleStakes, legalActions, seatsToAct, startRound } from '../round'
+import { applyAction, applyIfLegal, canDouble, doubleStakes, legalActions, seatsToAct, startRound } from '../round'
 import type { RoundState } from '../types'
 import { getView, visibleCounts } from '../view'
 import { stackedRound, tile } from './helpers'
@@ -293,5 +293,17 @@ describe('台數加倍', () => {
     const s = startRound({ seed: 3, dealer: 0, dealerStreak: 0, roundWind: 0 })
     s.players.forEach((p) => (p.discards = 2))
     expect(canDouble(s)).toBe(false)
+  })
+})
+
+describe('過期的動作（畫面用）', () => {
+  it('快速連點兩下打牌：第二次已經不合法，忽略而不是丟出錯誤', () => {
+    const s0 = stackedRound({ hands: TWO_WAITING })
+    const discard = { type: 'discard', seat: 0, tile: tile('5z') } as const
+    const s1 = applyIfLegal(s0, discard)
+    expect(s1.phase).toBe('claim')
+    // 同一個動作再送一次：applyAction 會丟錯誤，applyIfLegal 原封不動回傳
+    expect(() => applyAction(s1, discard)).toThrow()
+    expect(applyIfLegal(s1, discard)).toBe(s1)
   })
 })

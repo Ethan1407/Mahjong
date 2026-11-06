@@ -8,8 +8,7 @@
  *
  * 全部只用你的視角（PlayerView）看得到的資訊：自己的手牌、牌河、吃碰槓、花牌。
  */
-import { analyzeDiscards, createRng, toCounts, type DiscardOption, type Tile } from '../engine'
-import { WIND_NAMES, type RuleConfig } from '../engine'
+import { WIND_NAMES, analyzeDiscards, createRng, toCounts, type DiscardOption, type RuleConfig, type Tile } from '../engine'
 import { visibleCounts, type Action, type PlayerView } from '../game'
 import { decide, likelyNeeds, readOpponents, tileDanger, type OpponentRead, type TileDanger } from '../ai'
 import { myTaiHints, type TaiHint } from './taiHints'

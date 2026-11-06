@@ -9,6 +9,10 @@
   --accent-text: #ffffff;
   --badge-bg: #ece7da;
   --focus: #2f8f63;
+  /* 文字用的顏色（都和背景有足夠對比）：輸贏的正負、淺色底上的金色字 */
+  --pos: #1f7a4a;
+  --neg: #b3352b;
+  --gold-text: #8a5a00;
   color-scheme: light;
 }
 
@@ -24,6 +28,9 @@
     --accent-text: #0d1310;
     --badge-bg: #2a312d;
     --focus: #6fd0a2;
+    --pos: #6fd09a;
+    --neg: #ff8a80;
+    --gold-text: #f2b84b;
     color-scheme: dark;
   }
 }
@@ -39,6 +46,9 @@
   --accent-text: #0d1310;
   --badge-bg: #2a312d;
   --focus: #6fd0a2;
+  --pos: #6fd09a;
+  --neg: #ff8a80;
+  --gold-text: #f2b84b;
   color-scheme: dark;
 }
 
@@ -372,10 +382,10 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .wallet-box .pos {
-  color: #2f8f5b;
+  color: var(--pos);
 }
 .wallet-box .neg {
-  color: #c4473d;
+  color: var(--neg);
 }
 .wallet-records summary {
   cursor: pointer;
@@ -399,7 +409,7 @@ button:focus-visible {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
-  color: #c4473d;
+  color: var(--neg);
   cursor: pointer;
 }
 
@@ -483,10 +493,10 @@ button:focus-visible {
   color: var(--muted);
 }
 .wallet-box .wallet-diff.pos {
-  color: #2f8f5b;
+  color: var(--pos);
 }
 .wallet-box .wallet-diff.neg {
-  color: #c4473d;
+  color: var(--neg);
 }
 .custom-stake {
   display: flex;
@@ -652,10 +662,327 @@ button:focus-visible {
 }
 
 .stat-table .pos {
-  color: #2f8f5b;
+  color: var(--pos);
   font-weight: 600;
 }
 .stat-table .neg {
-  color: #c4473d;
+  color: var(--neg);
   font-weight: 600;
+}
+
+/* ─────────────────────────── 明亮／黑暗模式切換 ─────────────────────────── */
+/* 一般頁面的頂端：右上角放「明亮／黑暗」和「個人中心」 */
+.header-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-tools .profile-link {
+  position: static;
+}
+.profile-header .header-tools {
+  top: 0;
+}
+.decor-menu {
+  position: relative;
+}
+.decor-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.decor-button:hover,
+.decor-button[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+/* 放在綠色／藍色牌桌的橫幅上：用牌桌的淺色字和半透明底，兩種模式都看得清楚 */
+.decor-button.on-felt {
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--felt-text);
+}
+.decor-button.on-felt:hover,
+.decor-button.on-felt[aria-expanded='true'] {
+  border-color: var(--gold);
+}
+@media (max-width: 640px) {
+  .decor-button-label {
+    display: none;
+  }
+  .decor-button {
+    padding: 6px 9px;
+  }
+}
+
+/* 下拉卡片：永遠是頁面的卡片色（--surface）配頁面文字色，放在牌桌上也一樣 */
+.decor-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 300;
+  width: min(320px, calc(100vw - 24px));
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-align: left;
+  white-space: normal;
+}
+.decor-popover h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+.decor-section + .decor-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.decor-section h3 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.decor-note {
+  margin: -4px 0 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.decor-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.decor-segment button,
+.decor-swatch,
+.decor-effect-pick,
+.decor-preview,
+.decor-shop {
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.decor-segment button.on,
+.decor-swatch.on,
+.decor-effect.on .decor-effect-pick {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.decor-swatches {
+  display: flex;
+  gap: 6px;
+}
+.decor-swatch {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex: none;
+}
+.decor-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.decor-effect {
+  display: flex;
+  gap: 6px;
+}
+.decor-effect-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.decor-effects + .decor-note {
+  margin: 10px 0 0;
+}
+.decor-preview {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.decor-shop {
+  width: 100%;
+  margin-top: 8px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 特效的小樣本：深色底，才看得出金色、粉紅這些亮色的字 */
+.effect-sample,
+.shop-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: radial-gradient(ellipse at center, #22573f 0%, #13291f 100%);
+}
+.effect-sample {
+  width: 40px;
+  height: 32px;
+  flex: none;
+}
+.effect-sample .gold-burst-text {
+  font-size: 1.15rem;
+}
+
+/* ─────────────────────────── 商店 ─────────────────────────── */
+.shop-wallet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 16px;
+}
+.shop-wallet .section-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.shop-message {
+  padding: 10px 14px;
+  border-left: 4px solid;
+  border-radius: 10px;
+}
+.shop-message.ok {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.shop-message.no {
+  background: var(--badge-bg);
+  border-color: var(--neg);
+}
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.shop-card.equipped {
+  border-color: var(--accent);
+}
+.shop-sample {
+  position: relative;
+  flex-direction: column;
+  height: 110px;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+.shop-sample .gold-burst-text {
+  font-size: 2.6rem;
+}
+.shop-sample-hint {
+  position: absolute;
+  bottom: 6px;
+  font-size: 0.75rem;
+  color: #d9e8df;
+}
+.shop-info {
+  padding: 12px 14px 0;
+}
+.shop-info h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+.shop-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.shop-acts button {
+  padding: 3px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.shop-acts button:hover {
+  border-color: var(--accent);
+}
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 12px 14px 14px;
+}
+.shop-buy {
+  padding: 8px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.shop-buy.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.shop-buy:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.shop-short {
+  font-size: 0.85rem;
+  color: var(--neg);
+}
+
+/* 說明框在黑暗模式下和背景接近，加一圈淡淡的邊框 */
+.tip-layer {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+/* 手機：按鈕自己一行放在標題上方，避免蓋到標題 */
+@media (max-width: 640px) {
+  .header-tools {
+    position: static;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
 }

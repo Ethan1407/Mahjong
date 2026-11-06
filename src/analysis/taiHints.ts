@@ -6,6 +6,8 @@
  */
 import {
   DEFAULT_RULES,
+  FLOWER_SETS,
+  SUIT_NAMES,
   WIND_NAMES,
   isDragon,
   isWind,
@@ -36,8 +38,6 @@ export interface TaiHint extends TaiNote {
   whenWin: boolean
 }
 
-const SUIT_NAMES = ['萬', '筒', '條']
-
 /** 字牌刻子（或槓）的台：三元牌、門風、圈風。 */
 export function honorPungNotes(tile: Tile, seatWind: number, roundWind: number): TaiNote[] {
   const notes: TaiNote[] = []
@@ -63,11 +63,7 @@ export function meldNotes(meld: Meld & { hidden?: boolean }, seatWind: number, r
 export function flowerNotes(flowers: Tile[], seatWind: number): Map<Tile, TaiNote> {
   const out = new Map<Tile, TaiNote>()
   const own = seatFlowers(seatWind)
-  const sets: [Tile[], string][] = [
-    [[34, 35, 36, 37], '春夏秋冬'],
-    [[38, 39, 40, 41], '梅蘭竹菊'],
-  ]
-  for (const [set, label] of sets) {
+  for (const { tiles: set, label } of FLOWER_SETS) {
     if (set.every((f) => flowers.includes(f))) {
       for (const f of set) out.set(f, { name: `花槓（${label}）`, tai: 2, reason: `集齊${label}一整套，花槓 2 台（這一套不再另算正花）` })
       continue

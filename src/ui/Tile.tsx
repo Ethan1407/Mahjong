@@ -1,7 +1,6 @@
-import { isDragon, isFlower, isSuited, isWind, tileName, type Tile as TileId } from '../engine'
+import { SUIT_NAMES, isDragon, isFlower, isSuited, isWind, tileName, type Tile as TileId } from '../engine'
 
 const NUMERALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
-const SUIT_CHARS = ['萬', '筒', '條']
 const SUIT_CLASS = ['man', 'pin', 'sou']
 const HONOR_CHARS = ['東', '南', '西', '北', '中', '發', '']
 const FLOWER_CHARS = ['春', '夏', '秋', '冬', '梅', '蘭', '竹', '菊']
@@ -18,7 +17,7 @@ function Face({ tile }: FaceProps) {
     return (
       <>
         <span className="tile-num">{NUMERALS[tile % 9]}</span>
-        <span className="tile-suit">{SUIT_CHARS[suit]}</span>
+        <span className="tile-suit">{SUIT_NAMES[suit]}</span>
       </>
     )
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { rollDie } from '../engine'
 import type { OpeningDice } from '../game'
+import { DecorMenu } from './DecorMenu'
 import { seatName } from './useGame'
 
 /** 骰子點數的位置（3×3 格，0–8）。 */
@@ -74,6 +75,7 @@ export function DiceScreen({
           ← 離開
         </button>
         <span className="table-title">擲骰定莊</span>
+        <DecorMenu onFelt />
       </header>
       <main className="dice-main">
         <p className="dice-intro">由你擲 3 顆骰子，從你開始逆時針數（你算 1），數到誰，誰就是第一局的莊家。</p>

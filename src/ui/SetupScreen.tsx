@@ -10,10 +10,12 @@ import {
   formatChips,
   formatMoney,
   loadWallet,
+  netChips,
   type CustomStake,
   type StakeId,
 } from '../wallet'
 import { AssistToggles, useAssist } from './assist'
+import { DecorMenu } from './DecorMenu'
 
 export interface GameSettings {
   variant: VariantId
@@ -51,12 +53,19 @@ function saveSettings(s: GameSettings) {
   }
 }
 
-export function SetupScreen({ onStart, onProfile }: { onStart: (s: GameSettings) => void; onProfile: () => void }) {
+export function SetupScreen({
+  onStart,
+  onProfile,
+  onShop,
+}: {
+  onStart: (s: GameSettings) => void
+  onProfile: () => void
+  onShop: () => void
+}) {
   const [settings, setSettings] = useState<GameSettings>(loadSettings)
   const [assist, updateAssist] = useAssist()
   const [wallet] = useState(loadWallet)
-  /** 真正的輸贏：扣掉起始籌碼和自動補充的籌碼。 */
-  const net = wallet.balance - STARTING_BALANCE * (1 + (wallet.refills ?? 0))
+  const net = netChips(wallet)
 
   const start = () => {
     const clean = {
@@ -73,9 +82,15 @@ export function SetupScreen({ onStart, onProfile }: { onStart: (s: GameSettings)
   return (
     <main className="setup">
       <header className="setup-header">
-        <button type="button" className="profile-link" onClick={onProfile}>
-          個人中心
-        </button>
+        <div className="header-tools">
+          <DecorMenu onShop={onShop} />
+          <button type="button" className="profile-link" onClick={onShop}>
+            商店
+          </button>
+          <button type="button" className="profile-link" onClick={onProfile}>
+            個人中心
+          </button>
+        </div>
         <h1>台灣麻將教練</h1>
         <p>和三位機器人對局，每打一張牌都告訴你它的機會成本與放槍風險。</p>
       </header>

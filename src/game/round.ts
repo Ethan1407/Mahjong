@@ -236,8 +236,7 @@ export function seatsToAct(s: RoundState): Seat[] {
 // ─────────────────────────── 套用動作 ───────────────────────────
 
 export function applyAction(state: RoundState, action: Action): RoundState {
-  const legal = legalActions(state, action.seat)
-  if (!legal.some((a) => sameAction(a, action))) {
+  if (!isLegal(state, action)) {
     throw new Error(`不合法的動作：${JSON.stringify(action)}（階段 ${state.phase}，輪到 ${state.turn}）`)
   }
   const s = cloneRound(state)
@@ -277,6 +276,18 @@ export function applyAction(state: RoundState, action: Action): RoundState {
     }
   }
   return s
+}
+
+/** 這個動作在目前的狀態下合不合法。 */
+export const isLegal = (s: RoundState, action: Action) => legalActions(s, action.seat).some((a) => sameAction(a, action))
+
+/**
+ * 給畫面用：動作合法才套用，不合法就原封不動回傳。
+ * 玩家的點擊可能根據「上一個畫面」送出（例如快速連點兩下打牌，第二下時已經輪到別人），
+ * 這種過期的動作直接忽略，不要讓整個畫面當掉。
+ */
+export function applyIfLegal(state: RoundState, action: Action): RoundState {
+  return isLegal(state, action) ? applyAction(state, action) : state
 }
 
 // ─────────────────────────── 內部流程 ───────────────────────────
@@ -429,7 +440,7 @@ function resolveClaims(s: RoundState) {
   }
   meld.riverIndex = p.river.length
   p.melds.push(meld)
-  s.log.push({ type: claim.type as 'chow' | 'pung' | 'minkan', seat, from: pending.from, tiles: meld.tiles })
+  s.log.push({ type: claim.type as 'chow' | 'pung' | 'minkan', seat, from: pending.from, tiles: meld.tiles, claimed: tile })
   if (claim.type === 'minkan') drawFor(s, seat, true)
 }
 

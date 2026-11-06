@@ -139,6 +139,10 @@ export function ChipChart({ history }: { history: ChipPoint[] }) {
           </span>
           {hp.refill ? (
             <span>輸光後自動補充</span>
+          ) : hp.purchase && hover > 0 ? (
+            <span>
+              商店購買{hp.purchase} −{(history[hover - 1].balance - hp.balance).toLocaleString('zh-TW')}
+            </span>
           ) : hp.fee && hover > 0 ? (
             <span>中途離開，扣入場費 {(history[hover - 1].balance - hp.balance).toLocaleString('zh-TW')}</span>
           ) : hover > 0 ? (
@@ -186,7 +190,7 @@ export function ChipChart({ history }: { history: ChipPoint[] }) {
                   <tr key={i}>
                     <td>第 {i + 1} 筆</td>
                     <td>{timeText(p.t)}</td>
-                    <td>{p.refill ? '自動補充' : p.fee ? `入場費 −${Math.abs(d).toLocaleString('zh-TW')}` : i === 0 ? '開始' : `${d >= 0 ? '+' : '−'}${Math.abs(d).toLocaleString('zh-TW')}`}</td>
+                    <td>{p.refill ? '自動補充' : p.purchase ? `商店購買 −${Math.abs(d).toLocaleString('zh-TW')}` : p.fee ? `入場費 −${Math.abs(d).toLocaleString('zh-TW')}` : i === 0 ? '開始' : `${d >= 0 ? '+' : '−'}${Math.abs(d).toLocaleString('zh-TW')}`}</td>
                     <td>{formatChips(p.balance)}</td>
                   </tr>
                 )

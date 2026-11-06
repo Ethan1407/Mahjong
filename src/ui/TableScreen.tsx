@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_RULES, WIND_NAMES, tileName, type Tile as TileId } from '../engine'
+import { WIND_NAMES, tileName, type RuleConfig, type Tile as TileId } from '../engine'
 import {
   DOUBLE_DEADLINE_DISCARDS,
   DOUBLE_FACTORS,
@@ -32,11 +32,14 @@ import {
 } from '../wallet'
 import { recordHandOutcome, recordMatchFinish, recordMatchStart, recordStakeFee, type HandOutcome } from '../profile'
 import { usePlayTime } from './usePlayTime'
+import { formatDuration } from './format'
 import { GoldBurst, useCallBursts, type Burst } from './GoldBurst'
 import { flowerNotes, meldNotes, myStatusNotes, myTaiHints, type TaiNote } from '../analysis/taiHints'
 import { Tile, TileRow } from './Tile'
 import { AssistMenu, useAssist } from './assist'
 import { DiceScreen } from './DiceScreen'
+import { DecorMenu } from './DecorMenu'
+import { useCosmetics } from '../cosmetics'
 import { OpponentInsights } from './OpponentInsights'
 import { DEAL_STEPS, HUMAN, seatName, useGame } from './useGame'
 import './table.css'
@@ -129,10 +132,11 @@ export function TableScreen({
 
   // 台數加倍：選完倍數後播放金色「×N」動畫
   const [burst, setBurst] = useState<Burst | null>(null)
+  const { effect: myEffect } = useCosmetics()
   const doubleWithBurst = (factor: number) => {
     if (stake.free) return // 免費入場不能加倍
     double(factor)
-    setBurst({ text: `台數 ×${factor}`, key: Date.now() })
+    setBurst({ text: `台數 ×${factor}`, effect: myEffect, key: Date.now() })
   }
   const endBurst = useCallback(() => setBurst(null), [])
   // 所有玩家吃、碰、槓、胡、自摸時，也用金色大字顯示（文字在 GoldBurst.tsx 裡改）
@@ -217,6 +221,7 @@ export function TableScreen({
               籌碼 <strong>{formatChips(balance)}</strong>
             </DoubleMenu>
           )}
+          <DecorMenu onFelt />
           <AssistMenu settings={assist} update={updateAssist} />
         </div>
       </header>
@@ -241,6 +246,7 @@ export function TableScreen({
           <PlayerArea
             view={view}
             match={match}
+            rules={round.rules}
             act={act}
             showHint={assist.discardHint}
             taiOn={assist.taiHints}
@@ -274,8 +280,16 @@ export function TableScreen({
         />
       )}
       <PlayClock seconds={playTime.seconds} paused={playTime.paused} />
-      {burst && <GoldBurst key={burst.key} text={burst.text} sub={burst.sub} onDone={endBurst} />}
-      {callBurst && !burst && <GoldBurst key={callBurst.key} text={callBurst.text} sub={callBurst.sub} onDone={endCallBurst} />}
+      {burst && <GoldBurst key={burst.key} text={burst.text} sub={burst.sub} effect={burst.effect} action="win" onDone={endBurst} />}
+      {callBurst && !burst && <GoldBurst
+          key={callBurst.key}
+          text={callBurst.text}
+          sub={callBurst.sub}
+          effect={callBurst.effect}
+          action={callBurst.action}
+          tile={callBurst.tile}
+          onDone={endCallBurst}
+        />}
       {confirmExit && (
         <div className="dialog-backdrop">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="exit-title">
@@ -564,6 +578,7 @@ function Center({ view, match, round, deal }: { view: PlayerView; match: MatchSt
 function PlayerArea({
   view,
   match,
+  rules,
   act,
   showHint,
   taiOn,
@@ -572,6 +587,8 @@ function PlayerArea({
 }: {
   view: PlayerView
   match: MatchState
+  /** 這一局實際使用的規則（台數提示、打牌分析要和計分一致）。 */
+  rules: RuleConfig
   act: (a: Action) => void
   showHint: boolean
   taiOn: boolean
@@ -606,7 +623,7 @@ function PlayerArea({
   }
 
   // 台數提示：哪幾張牌、哪幾組副露、哪幾張花有台
-  const hints = useMemo(() => (taiOn ? myTaiHints(view) : []), [taiOn, view])
+  const hints = useMemo(() => (taiOn ? myTaiHints(view, rules) : []), [taiOn, view, rules])
   const status = useMemo(() => (taiOn ? myStatusNotes(view) : []), [taiOn, view])
   const tileTips: string[][] = shown.map(() => [])
   const meldTips: string[][] = me.melds.map(() => [])
@@ -628,8 +645,8 @@ function PlayerArea({
 
   // 打牌分析（階段 5）：輪到你出牌、而且開著「最佳出牌提示」時才算
   const analysis = useMemo(
-    () => (showHint && canDiscard ? analyzeTurn(view, DEFAULT_RULES, seatName) : null),
-    [showHint, canDiscard, view],
+    () => (showHint && canDiscard ? analyzeTurn(view, rules, seatName) : null),
+    [showHint, canDiscard, view, rules],
   )
   const pickTile = (t: TileId) => {
     const idx = shown.lastIndexOf(t)
@@ -818,15 +835,6 @@ function ClaimChoices({ view, act }: { view: PlayerView; act: (a: Action) => voi
 
 // ─────────────────────────── 結算 ───────────────────────────
 
-/** 「3 分 05 秒」這種寫法。 */
-export function formatDuration(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds))
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = String(s % 60).padStart(2, '0')
-  return h > 0 ? `${h} 小時 ${String(m).padStart(2, '0')} 分 ${sec} 秒` : `${m} 分 ${sec} 秒`
-}
-
 /** 右下角：這一將的有效遊玩時間（閒置或切到別的頁面時暫停）。 */
 function PlayClock({ seconds, paused }: { seconds: number; paused: boolean }) {
   return (
@@ -971,6 +979,9 @@ function MatchSummary({ match, onRestart, onExit }: { match: MatchState; onResta
   return (
     <main className="setup">
       <header className="setup-header">
+        <div className="header-tools">
+          <DecorMenu />
+        </div>
         <h1>一將結束</h1>
         <p>共打了 {match.history.length} 局。</p>
       </header>

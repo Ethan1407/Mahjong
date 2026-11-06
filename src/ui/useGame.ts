@@ -3,6 +3,7 @@ import { botFor, type BotLevel } from '../ai'
 import { createRng, randomSeed, rollDie } from '../engine'
 import {
   applyAction,
+  applyIfLegal,
   canDouble,
   doubleStakes,
   getView,
@@ -95,8 +96,13 @@ export function useGame(level: BotLevel, stake: Stake) {
     return () => clearTimeout(id)
   }, [started, dealing, round, bot])
 
+  // 你的點擊可能是根據上一個畫面送出的（例如快速連點兩下），已經不合法的動作直接忽略
   const act = useCallback((action: Action) => {
-    setMatch((m) => (m.round ? { ...m, round: applyAction(m.round, action) } : m))
+    setMatch((m) => {
+      if (!m.round) return m
+      const round = applyIfLegal(m.round, action)
+      return round === m.round ? m : { ...m, round }
+    })
   }, [])
 
   const next = useCallback(() => {
@@ -105,6 +111,11 @@ export function useGame(level: BotLevel, stake: Stake) {
   }, [])
 
   const start = useCallback(() => setStarted(true), [])
+
+  // 計時：整將從擲完骰開始算；每一局從發完牌開始算，到胡牌（或流局）為止
+  const [matchStartedAt, setMatchStartedAt] = useState<number | null>(null)
+  const [handStartedAt, setHandStartedAt] = useState<number | null>(null)
+  const [handSeconds, setHandSeconds] = useState<number | null>(null)
 
   /**
    * 按下「擲骰子」時才真正擲：三顆骰子各自用密碼學亂數擲出，和牌局種子無關，
@@ -134,10 +145,6 @@ export function useGame(level: BotLevel, stake: Stake) {
   /** 發牌中：每人已經發到幾張（0–16）；發完為 null。 */
   const dealProgress = dealing ? dealStep : null
 
-  // 計時：整將從擲完骰開始算；每一局從發完牌開始算，到胡牌（或流局）為止
-  const [matchStartedAt, setMatchStartedAt] = useState<number | null>(null)
-  const [handStartedAt, setHandStartedAt] = useState<number | null>(null)
-  const [handSeconds, setHandSeconds] = useState<number | null>(null)
   useEffect(() => {
     if (started) setMatchStartedAt((t) => t ?? Date.now())
   }, [started])

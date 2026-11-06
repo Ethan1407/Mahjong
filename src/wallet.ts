@@ -79,6 +79,8 @@ export interface Wallet {
   history?: ChipPoint[]
   /** 輸光後自動補充過幾次。 */
   refills?: number
+  /** 在商店花掉的籌碼總數（不算輸贏）。 */
+  spent?: number
 }
 
 export interface ChipPoint {
@@ -89,6 +91,8 @@ export interface ChipPoint {
   refill?: boolean
   /** 這一點是中途離開扣的入場費。 */
   fee?: boolean
+  /** 這一點是在商店買東西（買了什麼）。 */
+  purchase?: string
 }
 
 const MAX_HISTORY = 500
@@ -153,10 +157,19 @@ export function recordHand(matchId: number, stake: Stake, startedAt: number, han
   }
   rec.delta += delta
   rec.hands = handNumber + 1
-  w.balance += delta
+  w.records = w.records.slice(0, MAX_RECORDS)
+  return applyChange(w, delta)
+}
+
+/**
+ * 籌碼加減 delta、記一筆變化；輸光（≤ 0）時自動補充到 STARTING_BALANCE。存檔後回傳新的錢包。
+ * fee：這筆是中途離開扣的入場費。
+ */
+function applyChange(w: Wallet, delta: number, fee = false): RecordResult {
   const now = Date.now()
+  w.balance += delta
   const history = w.history ?? []
-  history.push({ t: now, balance: w.balance })
+  history.push(fee ? { t: now, balance: w.balance, fee: true } : { t: now, balance: w.balance })
   let refilled = false
   if (w.balance <= 0) {
     w.balance = STARTING_BALANCE
@@ -165,7 +178,6 @@ export function recordHand(matchId: number, stake: Stake, startedAt: number, han
     refilled = true
   }
   w.history = history.slice(-MAX_HISTORY)
-  w.records = w.records.slice(0, MAX_RECORDS)
   saveWallet(w)
   return { ...w, refilled }
 }
@@ -177,22 +189,33 @@ export const exitFeeOf = (stake: Stake) => (stake.free ? 0 : stake.base)
 export function chargeExitFee(matchId: number, stake: Stake, amount: number): RecordResult {
   const w = loadWallet()
   if (stake.free || amount <= 0) return { ...w, refilled: false }
-  const now = Date.now()
-  w.balance -= amount
   const rec = w.records.find((r) => r.id === matchId)
   if (rec) rec.delta -= amount
-  const history = w.history ?? []
-  history.push({ t: now, balance: w.balance, fee: true })
-  let refilled = false
-  if (w.balance <= 0) {
-    w.balance = STARTING_BALANCE
-    w.refills = (w.refills ?? 0) + 1
-    history.push({ t: now, balance: w.balance, refill: true })
-    refilled = true
+  return applyChange(w, -amount, true)
+}
+
+/** 真正的輸贏：目前籌碼扣掉起始籌碼和自動補充的籌碼；在商店花的錢是消費，不算輸。 */
+export const netChips = (w: Wallet) => w.balance + (w.spent ?? 0) - STARTING_BALANCE * (1 + (w.refills ?? 0))
+
+export type SpendResult = { ok: true; wallet: Wallet } | { ok: false; reason: string }
+
+/**
+ * 在商店花籌碼。買完至少要剩 1 籌碼（不能靠買東西花光、再領自動補充）。
+ * what：買了什麼，記在籌碼變化圖上。
+ */
+export function spendChips(amount: number, what: string): SpendResult {
+  const w = loadWallet()
+  if (amount <= 0) return { ok: true, wallet: w }
+  if (w.balance - amount < 1) {
+    return { ok: false, reason: `籌碼不夠：需要 ${formatChips(amount)}，買完至少要剩 1，你現在有 ${formatChips(w.balance)}` }
   }
+  w.balance -= amount
+  w.spent = (w.spent ?? 0) + amount
+  const history = w.history ?? []
+  history.push({ t: Date.now(), balance: w.balance, purchase: what })
   w.history = history.slice(-MAX_HISTORY)
   saveWallet(w)
-  return { ...w, refilled }
+  return { ok: true, wallet: w }
 }
 
 export function resetWallet(): Wallet {

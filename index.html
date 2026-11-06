@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>麻將教練</title>
+    <script>
+      // 在畫面出現前套用上次選的明亮／黑暗模式和牌桌顏色（邏輯同 src/theme.ts、src/cosmetics.ts），避免閃一下錯的顏色
+      try {
+        var t = localStorage.getItem('mahjong.theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+        var c = JSON.parse(localStorage.getItem('mahjong.cosmetics') || 'null')
+        if (c && c.table === 'blue') document.documentElement.dataset.table = 'blue'
+      } catch (e) {}
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='2' width='22' height='28' rx='4' fill='%23fffdf6' stroke='%231f6b4a' stroke-width='2'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23b3261e' font-family='serif' font-weight='700'%3E%E4%B8%AD%3C/text%3E%3C/svg%3E"
