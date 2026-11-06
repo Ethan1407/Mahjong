@@ -52,7 +52,7 @@ export const ASSIST_OPTIONS: OptionInfo[] = [
   {
     key: 'discardHint',
     name: '最佳出牌提示',
-    description: '點選一張牌時，顯示打出後離胡牌還差幾步、還有幾張有效牌，並和最佳打法比較。',
+    description: '手牌上標出建議打的牌；點選一張牌時，分析進攻效率、機會成本（慢幾步、會不會拆掉有台的組合）、放槍風險和誰可能需要這張，還能比較所有打法。',
   },
   {
     key: 'taiHints',

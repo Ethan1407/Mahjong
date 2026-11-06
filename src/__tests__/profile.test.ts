@@ -29,7 +29,7 @@ describe('個人中心的遊玩數據', () => {
     expect(s.draws).toBe(1)
     expect(s.best?.tai).toBe(5)
     expect(s.fastestTurn).toBe(7)
-    expect(s.byLevel.normal).toEqual({ hands: 3, wins: 1, dealIns: 1 })
+    expect(s.byLevel.normal).toMatchObject({ hands: 3, wins: 1, dealIns: 1 })
   })
 
   it('遊玩時間累加，存起來之後再讀還在；可以清除', () => {
@@ -48,8 +48,13 @@ describe('個人中心的遊玩數據', () => {
     recordMatchStart(a)
     recordMatchStart(c)
     recordHandOutcome({ match: 3, hand: 0, level: 'hard', kind: 'dealIn', stake: c, delta: -85 })
-    recordStakeFee(c, 40)
+    recordStakeFee(c, 40, 'hard')
+    recordMatchStart({ key: 'free', label: '免費入場' })
+    recordHandOutcome({ match: 4, hand: 0, level: 'hard', kind: 'win', tai: 1, stake: { key: 'free', label: '免費入場' }, delta: 360 })
     const s = loadStats()
+    // 各難度的輸贏：籌碼（270 − 85 − 入場費 40）和免費場分數分開記
+    expect(s.byLevel.hard.net).toBe(145)
+    expect(s.byLevel.hard.freeNet).toBe(360)
     expect(s.byStake.s50).toEqual({ label: '50 / 20', matches: 2, hands: 1, wins: 1, net: 270 })
     expect(s.byStake['custom:40/15']).toMatchObject({ matches: 1, hands: 1, wins: 0, net: -125 })
   })

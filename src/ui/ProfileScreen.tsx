@@ -6,6 +6,7 @@ import { ChipChart } from './ChipChart'
 import { formatDuration } from './TableScreen'
 
 const LEVELS: StatLevel[] = ['easy', 'normal', 'hard']
+const moneyClass = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : undefined)
 const dateText = (t: number | null) =>
   t === null ? '—' : new Date(t).toLocaleString('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -86,6 +87,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
 
       <section aria-labelledby="level-title">
         <h2 id="level-title">各難度戰績</h2>
+        <p className="section-note">籌碼輸贏只算有賭注的對局（含中途離開扣的入場費）；免費入場的輸贏另外記成分數。</p>
         <table className="stat-table">
           <thead>
             <tr>
@@ -95,6 +97,8 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
               <th>勝率</th>
               <th>放槍</th>
               <th>放槍率</th>
+              <th>籌碼輸贏</th>
+              <th>免費場分數</th>
             </tr>
           </thead>
           <tbody>
@@ -108,6 +112,8 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
                   <td>{percent(d.wins, d.hands)}</td>
                   <td>{d.dealIns}</td>
                   <td>{percent(d.dealIns, d.hands)}</td>
+                  <td className={moneyClass(d.net ?? 0)}>{formatMoney(d.net ?? 0)}</td>
+                  <td className={moneyClass(d.freeNet ?? 0)}>{formatMoney(d.freeNet ?? 0)} 分</td>
                 </tr>
               )
             })}
@@ -173,7 +179,9 @@ function StakeTable({ byStake }: { byStake: ReturnType<typeof loadStats>['byStak
             <td>{d?.hands ?? 0}</td>
             <td>{d?.wins ?? 0}</td>
             <td>{percent(d?.wins ?? 0, d?.hands ?? 0)}</td>
-            <td>{d ? (key === 'free' ? `${formatMoney(d.net)} 分` : formatMoney(d.net)) : '—'}</td>
+            <td className={d ? moneyClass(d.net) : undefined}>
+              {d ? (key === 'free' ? `${formatMoney(d.net)} 分` : formatMoney(d.net)) : '—'}
+            </td>
           </tr>
         ))}
       </tbody>

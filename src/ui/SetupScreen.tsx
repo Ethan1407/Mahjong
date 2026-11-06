@@ -10,7 +10,6 @@ import {
   formatChips,
   formatMoney,
   loadWallet,
-  resetWallet,
   type CustomStake,
   type StakeId,
 } from '../wallet'
@@ -55,7 +54,7 @@ function saveSettings(s: GameSettings) {
 export function SetupScreen({ onStart, onProfile }: { onStart: (s: GameSettings) => void; onProfile: () => void }) {
   const [settings, setSettings] = useState<GameSettings>(loadSettings)
   const [assist, updateAssist] = useAssist()
-  const [wallet, setWallet] = useState(loadWallet)
+  const [wallet] = useState(loadWallet)
   /** 真正的輸贏：扣掉起始籌碼和自動補充的籌碼。 */
   const net = wallet.balance - STARTING_BALANCE * (1 + (wallet.refills ?? 0))
 
@@ -161,15 +160,6 @@ export function SetupScreen({ onStart, onProfile }: { onStart: (s: GameSettings)
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  className="wallet-reset"
-                  onClick={() => {
-                    if (window.confirm(`確定要把籌碼重設為 ${formatChips(STARTING_BALANCE)}、清除所有紀錄嗎？`)) setWallet(resetWallet())
-                  }}
-                >
-                  重設籌碼
-                </button>
               </details>
             )}
           </div>

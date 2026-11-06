@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createRng, parseTiles, sortTiles } from '../../engine'
 import { applyAction, getView, seatsToAct, startRound, type RoundState } from '../../game'
 import { stackedRound, tile } from '../../game/__tests__/helpers'
-import { decide, type BotLevel } from '../brains'
+import { botFor, decide, type BotLevel } from '../brains'
 import { likelyNeeds, readOpponent, tileDanger } from '../danger'
 
 /**
@@ -155,3 +155,40 @@ describe('機器人的決定', () => {
     }
   })
 })
+
+describe('放槍機率（給玩家看的）', () => {
+  it('最危險的情況也不會顯示接近 100%：對手快聽牌、做一色、牌牆快摸完', () => {
+    const s = dangerousTable()
+    // 三家都吃碰 4 組、打很多張；牌牆幾乎摸完
+    for (const seat of [2, 3]) {
+      s.players[seat].melds = s.players[1].melds.map((m) => ({ ...m }))
+      s.players[seat].river = s.players[1].river.map((r) => ({ ...r }))
+    }
+    const view = { ...getView(s, 0), wallDrawable: 2 }
+    for (const t of new Set(view.hand)) {
+      const d = tileDanger(view, t)
+      expect(d.chance).toBeLessThan(0.7)
+      expect(d.chance).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('實際打 20 局：每一次輪到你出牌，每張牌的放槍機率都在合理範圍', () => {
+    const bot = botFor('normal')
+    let max = 0
+    for (let seed = 1; seed <= 20; seed++) {
+      let s = startRound({ seed, dealer: 0, dealerStreak: 0, roundWind: 0 })
+      const rng = createRng(seed)
+      for (let step = 0; step < 3000 && s.phase !== 'ended'; step++) {
+        const seat = seatsToAct(s)[0]
+        const view = getView(s, seat)
+        if (seat === 0 && s.phase === 'discard') {
+          for (const t of new Set(view.hand)) max = Math.max(max, tileDanger(view, t).chance)
+        }
+        s = applyAction(s, bot(view, rng))
+      }
+    }
+    expect(max).toBeGreaterThan(0.02) // 有算出風險
+    expect(max).toBeLessThan(0.7) // 但不會誇張到接近 100%
+  })
+})
+

@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { STARTING_BALANCE, formatChips, type ChipPoint } from '../wallet'
 
 const HEIGHT = 240
+/** 筆數在這個以內才在每一筆畫點。 */
+const MAX_DOTS = 80
 const PAD = { top: 16, right: 16, bottom: 28, left: 64 }
 
 /** 取好讀的刻度（1、2、5 × 10^n）。 */
@@ -96,6 +98,11 @@ export function ChipChart({ history }: { history: ChipPoint[] }) {
         <path className="chart-line" d={path} />
         {refillPath && <path className="chart-refill-line" d={refillPath} />}
 
+        {/* 折線圖：每一筆都畫一個點（太多筆時點會擠在一起，就只畫線） */}
+        {n <= MAX_DOTS &&
+          history.map((p, i) =>
+            p.refill || i === n - 1 ? null : <circle key={`d${i}`} className="chart-dot" cx={x(i)} cy={y(p.balance)} r={3} />,
+          )}
         {/* 自動補充的點 */}
         {history.map((p, i) =>
           p.refill ? <circle key={i} className="chart-refill" cx={x(i)} cy={y(p.balance)} r={5} /> : null,

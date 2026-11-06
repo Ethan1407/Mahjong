@@ -59,9 +59,11 @@ export interface TileProps {
   dealDelay?: number
   /** 一般說明（滑鼠移上去顯示，不加金框），例如被誰吃碰走。 */
   note?: string
+  /** 牌上方的小標籤，例如「建議」。 */
+  mark?: string
 }
 
-export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClick, title, tip, dealDelay, note }: TileProps) {
+export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClick, title, tip, dealDelay, note, mark }: TileProps) {
   const cls = [
     'tile',
     `tile-${size}`,
@@ -77,8 +79,17 @@ export function Tile({ tile, back, size = 'md', selected, highlight, dim, onClic
     .join(' ')
   const name = back ? '牌背' : tileName(tile!)
   const info = tip ?? note
-  const label = info ? `${name}（${info}）` : name
-  const content = back ? null : <Face tile={tile!} />
+  const label = [name, mark && `（${mark}）`, info && `（${info}）`].filter(Boolean).join('')
+  const content = back ? null : (
+    <>
+      <Face tile={tile!} />
+      {mark && (
+        <span className="tile-mark" aria-hidden>
+          {mark}
+        </span>
+      )}
+    </>
+  )
   const style = dealDelay !== undefined ? { animationDelay: `${dealDelay}ms` } : undefined
   // 有說明時用自訂的提示框（data-tip），不再用瀏覽器內建的 title，避免出現兩個提示
   const titleAttr = info ? undefined : (title ?? name)

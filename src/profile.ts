@@ -10,6 +10,10 @@ export interface LevelStats {
   hands: number
   wins: number
   dealIns: number
+  /** 有賭注的對局：籌碼輸贏（含中途離開扣的入場費）。舊資料沒有這欄，當 0。 */
+  net?: number
+  /** 免費入場：分數輸贏（不算籌碼）。 */
+  freeNet?: number
 }
 
 export interface PlayerStats {
@@ -63,7 +67,7 @@ export interface StakeRef {
 
 const KEY = 'mahjong.stats'
 
-const emptyLevel = (): LevelStats => ({ hands: 0, wins: 0, dealIns: 0 })
+const emptyLevel = (): LevelStats => ({ hands: 0, wins: 0, dealIns: 0, net: 0, freeNet: 0 })
 
 export function emptyStats(): PlayerStats {
   return {
@@ -163,6 +167,8 @@ export function recordHandOutcome(o: HandOutcome) {
     s.hands++
     const lv = (s.byLevel[o.level] ??= emptyLevel())
     lv.hands++
+    if (o.stake?.key === 'free') lv.freeNet = (lv.freeNet ?? 0) + (o.delta ?? 0)
+    else if (o.stake) lv.net = (lv.net ?? 0) + (o.delta ?? 0)
     if (o.stake) {
       const st = stakeEntry(s, o.stake)
       st.hands++
@@ -189,10 +195,14 @@ export function recordHandOutcome(o: HandOutcome) {
   })
 }
 
-/** 中途離開扣的入場費，也算進這種入場的輸贏。 */
-export function recordStakeFee(stake: StakeRef, amount: number) {
+/** 中途離開扣的入場費，也算進這種入場、這個難度的輸贏。 */
+export function recordStakeFee(stake: StakeRef, amount: number, level?: StatLevel) {
   update((s) => {
     stakeEntry(s, stake).net -= amount
+    if (level) {
+      const lv = (s.byLevel[level] ??= emptyLevel())
+      lv.net = (lv.net ?? 0) - amount
+    }
   })
 }
 

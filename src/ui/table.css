@@ -440,8 +440,188 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   font-size: 0.9rem;
 }
-.discard-hint.good {
+.discard-hint.good,
+.discard-hint.tone-best {
   border-left-color: var(--gold);
+}
+.discard-hint.tone-warn {
+  border-left-color: #f6a04b;
+}
+/* 打牌分析卡（DiscardHint.tsx）：固定寬度，太高時可以捲動，不會蓋滿整個畫面 */
+.discard-hint {
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  line-height: 1.5;
+}
+.hint-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+.verdict-chip {
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.verdict-chip.best {
+  background: var(--gold);
+  color: #2a1d05;
+}
+.verdict-chip.ok {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--felt-text);
+}
+.verdict-chip.warn {
+  background: rgba(246, 160, 75, 0.25);
+  color: #f6c27e;
+}
+.hint-rec {
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(242, 184, 75, 0.12);
+  font-size: 0.85rem;
+}
+.rec-tile {
+  display: inline-flex;
+  vertical-align: middle;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.hint-grid {
+  display: grid;
+  /* minmax(0, 1fr)：內容（一排牌、長句子）可以換行，不會撐出卡片外 */
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+}
+.hint-grid dt {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  padding-top: 1px;
+}
+.hint-grid dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.discard-hint {
+  overflow-x: hidden;
+}
+.discard-hint .hint-tiles .tile-row {
+  flex-wrap: wrap;
+}
+.discard-hint .hint-tiles {
+  display: inline-block;
+  max-width: 100%;
+}
+.compare-wrap {
+  overflow-x: auto;
+}
+.hint-list {
+  margin: 2px 0 0;
+  padding-left: 1.1em;
+}
+.hint-list li + li {
+  margin-top: 2px;
+}
+.hint-muted {
+  color: var(--felt-muted);
+}
+.hint-toggle {
+  margin-top: 6px;
+  font-size: 0.82rem;
+}
+.compare-wrap {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.compare-table th {
+  position: sticky;
+  top: 0;
+  background: #22382d;
+  color: var(--felt-muted);
+  font-weight: 600;
+  text-align: left;
+  padding: 4px 6px;
+}
+.compare-table td {
+  padding: 3px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+.compare-table tbody tr {
+  cursor: pointer;
+}
+.compare-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.compare-table tr.sel {
+  background: rgba(255, 255, 255, 0.12);
+}
+.compare-table tr.rec td:first-child {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.rec-mark {
+  margin-left: 4px;
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.risk-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.risk-dot.safe {
+  background: #6fcf97;
+}
+.risk-dot.low {
+  background: #d8d86a;
+}
+.risk-dot.mid {
+  background: #f2a24b;
+}
+.risk-dot.high {
+  background: #ef6b5f;
+}
+/* 手牌上「建議」的小標籤 */
+.tile-mark {
+  position: absolute;
+  top: calc(var(--w) * -0.42);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--gold);
+  color: #2a1d05;
+  font-family: system-ui, sans-serif;
+  font-size: max(9px, calc(var(--w) * 0.24));
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .hint-tiles {
   margin-left: 6px;
@@ -506,7 +686,8 @@ span.hint-risk-why {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  z-index: 10;
+  /* 在所有東西上面：吃碰選擇框、打牌分析、說明框、金色大字都不會蓋住 */
+  z-index: 1100;
 }
 .dialog {
   width: 100%;
@@ -525,6 +706,7 @@ span.hint-risk-why {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+  gap: 10px;
 }
 .result-hand {
   display: flex;
@@ -1423,4 +1605,26 @@ span.hint-risk-why {
 .banner-side .assist-trigger,
 .banner-side button {
   white-space: nowrap;
+}
+
+/* 對話框是白底：一般按鈕用深色字和邊框，才看得清楚 */
+.dialog .action:not(.primary):not(.win) {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.dialog .action:not(.primary):not(.win):hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.pay-formula {
+  margin-left: 6px;
+  color: var(--text);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.pay-note {
+  margin-left: 4px;
+  color: var(--text);
+  opacity: 0.6;
+  font-size: 0.85em;
 }

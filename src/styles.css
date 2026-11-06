@@ -146,9 +146,33 @@ button:focus-visible {
 }
 
 .option-card.selected {
+  position: relative;
   border-color: var(--accent);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* 選中的卡片：右上角掛一張「紅中」麻將當裝飾（打多少錢那一區改成「發」） */
+.option-card.selected::after {
+  content: '中';
+  position: absolute;
+  top: -12px;
+  right: -8px;
+  width: 26px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b3a785;
+  border-radius: 4px;
+  background: linear-gradient(#f3eee0, #ddd4bc);
+  box-shadow: 0 2px 0 #7f7458, 0 3px 8px rgba(0, 0, 0, 0.25);
+  color: #c0392b;
+  font-family: 'Noto Serif TC', 'PMingLiU', 'Songti TC', serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(12deg);
+  pointer-events: none;
 }
 
 .option-card:disabled {
@@ -530,8 +554,14 @@ button:focus-visible {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
+  /* 折線：轉折處是尖角，不是圓滑的曲線 */
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
+}
+.chart-dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 1.5;
 }
 .chart-last,
 .chart-hover {
@@ -614,4 +644,18 @@ button:focus-visible {
 }
 .chart-table .stat-table {
   margin-top: 8px;
+}
+
+.option-grid.stakes .option-card.selected::after {
+  content: '發';
+  color: #1f7a3f;
+}
+
+.stat-table .pos {
+  color: #2f8f5b;
+  font-weight: 600;
+}
+.stat-table .neg {
+  color: #c4473d;
+  font-weight: 600;
 }

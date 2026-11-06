@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { WIND_NAMES, analyzeDiscards, tileName, toCounts, type Tile as TileId } from '../engine'
+import { DEFAULT_RULES, WIND_NAMES, tileName, type Tile as TileId } from '../engine'
 import {
   DOUBLE_DEADLINE_DISCARDS,
   DOUBLE_FACTORS,
   canDouble,
   describeEventFor,
   roundName,
-  visibleCounts,
   type Action,
   type MatchState,
   type PlayerView,
@@ -14,7 +13,9 @@ import {
   type RoundState,
   type SeatView,
 } from '../game'
-import { readOpponents, tileDanger, type BotLevel, type DangerLevel } from '../ai'
+import type { BotLevel } from '../ai'
+import { analyzeTurn } from '../analysis/discardAnalysis'
+import { DiscardHint } from './DiscardHint'
 import { DIFFICULTIES } from '../difficulty'
 import {
   STARTING_BALANCE,
@@ -43,8 +44,6 @@ import './table.css'
 /** 依相對位置：0 = 自己（下方）、1 = 下家（右）、2 = 對家（上）、3 = 上家（左）。 */
 const REL_POS = ['bottom', 'right', 'top', 'left'] as const
 const rel = (seat: number) => (seat - HUMAN + 4) % 4
-
-const SHANTEN_TEXT = (n: number) => (n <= 0 ? (n < 0 ? '胡牌' : '聽牌') : `${n} 向聽`)
 
 /** 發牌中顯示幾張：每一步每人 1 張，發完才顯示全部（含莊家多拿的那張）。 */
 const dealtCount = (total: number, step: number | null) => (step === null ? total : Math.min(total, step))
@@ -142,12 +141,13 @@ export function TableScreen({
   // 中途離開：有賭注的對局、你出過牌之後，離開要扣入場費（先確認）
   const [confirmExit, setConfirmExit] = useState(false)
   const exitFee = exitFeeOf(stake)
-  const humanPlayed = match.history.length > 0 || (round?.players[HUMAN].discards ?? 0) > 0
-  const mustPayToLeave = exitFee > 0 && started && !match.finished && humanPlayed
+  // 只有「這一局打到一半、你已經出過牌」才要扣；一局結束後、或新的一局你還沒出牌前，都可以免費離開
+  const inHandAfterDiscard = round !== null && round.phase !== 'ended' && round.players[HUMAN].discards > 0
+  const mustPayToLeave = exitFee > 0 && started && !match.finished && inHandAfterDiscard
   const requestExit = () => (mustPayToLeave ? setConfirmExit(true) : onExit())
   const leaveAndPay = () => {
     chargeExitFee(seed, stake, exitFee)
-    recordStakeFee(stakeRef, exitFee)
+    recordStakeFee(stakeRef, exitFee, difficulty)
     setConfirmExit(false)
     onExit()
   }
@@ -264,7 +264,14 @@ export function TableScreen({
       </div>
 
       {round.result && (
-        <ResultDialog result={round.result} round={round} seconds={handSeconds} refilled={refilled} onNext={next} />
+        <ResultDialog
+          result={round.result}
+          round={round}
+          seconds={handSeconds}
+          refilled={refilled}
+          onNext={next}
+          onLeave={onExit}
+        />
       )}
       <PlayClock seconds={playTime.seconds} paused={playTime.paused} />
       {burst && <GoldBurst key={burst.key} text={burst.text} sub={burst.sub} onDone={endBurst} />}
@@ -275,7 +282,9 @@ export function TableScreen({
             <h2 id="exit-title">確定要離開嗎？</h2>
             <p>
               這是有賭注的對局（{stake.name}
-              ），你已經出過牌了。現在離開會扣掉入場費 <strong>{formatChips(exitFee)}</strong> 籌碼。
+              ），這一局你已經出過牌了。現在離開會扣掉入場費 <strong>{formatChips(exitFee)}</strong> 籌碼。
+              <br />
+              等這一局結束、或下一局出牌前離開，就不用扣。
             </p>
             <p className="result-time">
               目前籌碼 {formatChips(balance)} → 離開後 {formatChips(balance - exitFee)}
@@ -617,6 +626,16 @@ function PlayerArea({
   }
   const tipAt = (i: number) => (tileTips[i].length > 0 ? tileTips[i].join('\n') : undefined)
 
+  // 打牌分析（階段 5）：輪到你出牌、而且開著「最佳出牌提示」時才算
+  const analysis = useMemo(
+    () => (showHint && canDiscard ? analyzeTurn(view, DEFAULT_RULES, seatName) : null),
+    [showHint, canDiscard, view],
+  )
+  const pickTile = (t: TileId) => {
+    const idx = shown.lastIndexOf(t)
+    if (idx >= 0) setSelIdx(idx)
+  }
+
   // 發牌中只顯示已經發到的牌，新發到的牌會飛進來
   const visible = dealtCount(handTiles.length, deal)
   const dealDelay = dealing ? 0 : undefined
@@ -635,7 +654,7 @@ function PlayerArea({
       )}
       <div className="hand-wrap">
         {/* 最佳出牌提示：浮在手牌上方，不會把手牌推動 */}
-        {showHint && canDiscard && selected !== null && <DiscardHint view={view} tile={selected} />}
+        {analysis && selected !== null && <DiscardHint analysis={analysis} tile={selected} onPick={pickTile} />}
         {!dealing && view.phase !== 'discard' && <ClaimChoices view={view} act={act} />}
         <div className="my-hand">
           {handTiles.slice(0, visible).map((t, i) => (
@@ -797,92 +816,6 @@ function ClaimChoices({ view, act }: { view: PlayerView; act: (a: Action) => voi
   )
 }
 
-const RISK_TEXT: Record<DangerLevel, string> = {
-  safe: '很低',
-  low: '低',
-  mid: '中',
-  high: '高',
-}
-const pct = (x: number) => (x < 0.01 ? '不到 1%' : `約 ${Math.round(x * 100)}%`)
-
-/** 選了一張牌時的分析：牌效（打這張對自己好不好）＋放槍風險（只看桌上公開的資訊）。 */
-function DiscardHint({ view, tile }: { view: PlayerView; tile: TileId }) {
-  const analysis = useMemo(() => {
-    const options = analyzeDiscards(toCounts(view.hand), view.seats[HUMAN].melds.length, visibleCounts(view))
-    const reads = readOpponents(view)
-    const danger = new Map(options.map((o) => [o.tile, tileDanger(view, o.tile, reads)]))
-    return { options, reads, danger }
-  }, [view])
-  const { options, reads, danger } = analysis
-  const mine = options.find((o) => o.tile === tile)
-  const best = options[0]
-  const risk = danger.get(tile)
-  if (!mine || !risk) return null
-  const isBest = mine.shanten === best.shanten && mine.effectiveCount >= best.effectiveCount
-
-  // 誰可能會胡這張：風險明顯的對手，附上原因
-  const threats = risk.perSeat
-    .filter((d) => d.risk >= 0.02)
-    .sort((a, b) => b.risk - a.risk)
-    .map((d) => {
-      const read = reads.find((r) => r.seat === d.seat)!
-      const aboutTile = d.reasons.length > 0 ? d.reasons.join('、') : '這張沒有特別安全的跡象'
-      const aboutHim = read.reasons[0] ? `。他${read.reasons[0].replace(/^他/, '')}` : ''
-      return `${seatName(d.seat)}（${pct(d.risk)}）：${aboutTile}${aboutHim}`
-    })
-  const noInfo = reads.every((r) => !r.enoughInfo)
-
-  // 風險偏高時，找一張牌效差不多、但更安全的牌
-  let safer: { tile: TileId; risk: number } | null = null
-  if (risk.level === 'mid' || risk.level === 'high') {
-    for (const o of options) {
-      const d = danger.get(o.tile)!
-      if (o.tile === tile || o.shanten > mine.shanten + 1 || d.risk > risk.risk * 0.5) continue
-      if (!safer || d.risk < safer.risk) safer = { tile: o.tile, risk: d.risk }
-    }
-  }
-
-  return (
-    <div className={`discard-hint${isBest ? ' good' : ''} risk-${risk.level}`} aria-live="polite">
-      <strong>打出 {tileName(tile)}：</strong>
-      {SHANTEN_TEXT(mine.shanten)}，有效進張 {mine.effective.length} 種、還剩 {mine.effectiveCount} 張
-      {mine.effective.length > 0 && (
-        <span className="hint-tiles">
-          <TileRow tiles={mine.effective} size="xs" />
-        </span>
-      )}
-      <div className="hint-compare">
-        {isBest
-          ? '牌效：這是目前牌效最好的打法之一。'
-          : `牌效比較：打 ${tileName(best.tile)} 是 ${SHANTEN_TEXT(best.shanten)}，還剩 ${best.effectiveCount} 張進張。`}
-      </div>
-      <div className="hint-risk">
-        <span className={`risk-chip ${risk.level}`}>
-          放槍風險：{RISK_TEXT[risk.level]}（{pct(risk.risk)}）
-        </span>
-        {noInfo ? (
-          <span className="hint-risk-why">大家打出的牌還少，看不出誰聽牌，現在打什麼都不太會放槍。</span>
-        ) : threats.length > 0 ? (
-          <ul className="hint-risk-why">
-            {threats.map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
-        ) : (
-          <span className="hint-risk-why">從牌河看，沒有人特別需要這張。</span>
-        )}
-        {safer && (
-          <div className="hint-risk-why">
-            比較安全的選擇：打 {tileName(safer.tile)}（放槍{pct(safer.risk)}）
-            {options.find((o) => o.tile === safer.tile)!.shanten > mine.shanten ? '，但會慢一步聽牌' : ''}。
-          </div>
-        )}
-      </div>
-      <div className="hint-note">風險只根據大家打出的牌和吃碰推測，不看別人的手牌。</div>
-    </div>
-  )
-}
-
 // ─────────────────────────── 結算 ───────────────────────────
 
 /** 「3 分 05 秒」這種寫法。 */
@@ -919,12 +852,15 @@ function ResultDialog({
   seconds,
   refilled,
   onNext,
+  onLeave,
 }: {
   result: RoundResult
   round: RoundState
   seconds: number | null
   refilled: boolean
   onNext: () => void
+  /** 一局結束後可以直接離開（不扣入場費）。 */
+  onLeave: () => void
 }) {
   return (
     <div className="dialog-backdrop">
@@ -949,7 +885,11 @@ function ResultDialog({
           </p>
         )}
         {seconds !== null && <p className="result-time">這一局花了 {formatDuration(seconds)}</p>}
+        <p className="result-time">這一局已經結束，現在離開不用扣入場費；下一局出牌前也都可以離開。</p>
         <div className="dialog-actions">
+          <button type="button" className="action" onClick={onLeave}>
+            離開對局
+          </button>
           <button type="button" className="action primary" onClick={onNext} autoFocus>
             下一局
           </button>
@@ -1012,8 +952,12 @@ function WinDetail({ result, round }: { result: Extract<RoundResult, { type: 'wi
       <ul className="payments">
         {result.payments.payments.map((p) => (
           <li key={p.payer}>
-            {seatName(p.payer)} 付 <strong>{p.amount}</strong>（{p.tai} 台
-            {p.dealerTai > 0 ? `，含莊家相關 ${p.dealerTai} 台` : ''}）
+            {seatName(p.payer)} 付 <strong>{p.amount}</strong>
+            <span className="pay-formula">
+              ＝ 入場費 {round.rules.base} ＋ {p.tai} 台 × 台費 {round.rules.perTai}
+              {round.doubled ? `（已 ×${round.doubled.factor}）` : ''}
+            </span>
+            {p.dealerTai > 0 && <span className="pay-note">（{p.tai} 台裡含莊家相關 {p.dealerTai} 台）</span>}
           </li>
         ))}
       </ul>

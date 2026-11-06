@@ -31,8 +31,10 @@ export interface OpponentRead {
 
 export interface SeatDanger {
   seat: number
-  /** 放槍給這個人的估計機率。 */
+  /** 危險分數（機器人比較用的相對值 0–1：他聽牌的機率 × 這張是他要的牌的相對可能）。 */
   risk: number
+  /** 給玩家看的估計機率：放槍給這個人的機率（已換算成實際的機率大小）。 */
+  chance: number
   reasons: string[]
 }
 
@@ -40,11 +42,21 @@ export type DangerLevel = 'safe' | 'low' | 'mid' | 'high'
 
 export interface TileDanger {
   tile: Tile
-  /** 放槍給任何一家的估計機率。 */
+  /** 危險分數（機器人比較用的相對值）。 */
   risk: number
+  /** 給玩家看的估計機率：放槍給任何一家的機率。 */
+  chance: number
+  /** 依 chance 分級。 */
   level: DangerLevel
   perSeat: SeatDanger[]
 }
+
+/**
+ * 危險分數換算成機率的比例。
+ * 危險分數裡「這張是他要的牌」是相對值：一張完全沒線索的中張算 1。
+ * 但實際上就算對手聽牌，通常只聽一兩種牌，一張沒線索的中張剛好是他要的牌，大約三成。
+ */
+export const HIT_SCALE = 0.3
 
 const SUIT_NAMES = ['萬', '筒', '條']
 const MELD_VERB: Record<string, string> = { chow: '吃', pung: '碰', minkan: '槓', kakan: '加槓', ankan: '暗槓' }
@@ -231,10 +243,11 @@ function waitWeight(view: PlayerView, read: OpponentRead, tile: Tile, visible: n
   return { w: clamp(w, 0, 1), reasons }
 }
 
-export function levelOf(risk: number): DangerLevel {
-  if (risk < 0.03) return 'safe'
-  if (risk < 0.08) return 'low'
-  if (risk < 0.16) return 'mid'
+/** 依放槍機率分級：不到 1% 很安全；3% 以內低；6% 以內中；再高就是危險牌。 */
+export function levelOf(chance: number): DangerLevel {
+  if (chance < 0.01) return 'safe'
+  if (chance < 0.03) return 'low'
+  if (chance < 0.06) return 'mid'
   return 'high'
 }
 
@@ -242,10 +255,11 @@ export function tileDanger(view: PlayerView, tile: Tile, reads = readOpponents(v
   const visible = visibleCounts(view)
   const perSeat = reads.map((read) => {
     const { w, reasons } = waitWeight(view, read, tile, visible)
-    return { seat: read.seat, risk: read.tenpai * w, reasons }
+    return { seat: read.seat, risk: read.tenpai * w, chance: read.tenpai * w * HIT_SCALE, reasons }
   })
   const risk = 1 - perSeat.reduce((acc, s) => acc * (1 - s.risk), 1)
-  return { tile, risk, level: levelOf(risk), perSeat }
+  const chance = 1 - perSeat.reduce((acc, s) => acc * (1 - s.chance), 1)
+  return { tile, risk, chance, level: levelOf(chance), perSeat }
 }
 
 // ─────────────────────────── 可能需要的牌 ───────────────────────────
