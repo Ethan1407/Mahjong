@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EFFECTS, TABLE_COLORS, equipEffect, setTableColor, useCosmetics, type EffectId } from '../cosmetics'
 import { setTheme, useTheme } from '../theme'
+import { EffectIcon } from './EffectIcon'
 import { GoldBurst, type BurstAction } from './GoldBurst'
 
 /** 預覽時依序輪流播放的動作（鯨魚每種動作的表演不同）。 */
@@ -98,8 +99,8 @@ export function DecorMenu({ onFelt = false, onShop }: { onFelt?: boolean; /** �
               {owned.map((e) => (
                 <div key={e.id} className={`decor-effect${cosmetics.effect === e.id ? ' on' : ''}`}>
                   <button type="button" role="radio" aria-checked={cosmetics.effect === e.id} className="decor-effect-pick" onClick={() => equipEffect(e.id)}>
-                    <span className={`effect-sample burst-${e.id}`} aria-hidden>
-                      <span className="gold-burst-text">碰</span>
+                    <span className="effect-sample" aria-hidden>
+                      <EffectIcon id={e.id} />
                     </span>
                     {e.name}
                   </button>

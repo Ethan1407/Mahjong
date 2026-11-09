@@ -288,44 +288,49 @@ button:focus-visible {
 .assist-note {
   color: var(--accent);
 }
+/* 輔助功能的開關：一張紅中。打開時亮起、浮起來、帶光暈；關掉時變暗、變灰、沉下去 */
 .switch {
   flex-shrink: 0;
-  position: relative;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  width: 64px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1.5px solid var(--border);
-  background: var(--badge-bg);
+  gap: 4px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 10px;
+  background: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
+  line-height: 1;
   color: var(--muted);
-  transition: background-color 0.15s;
 }
-.switch-knob {
-  position: absolute;
-  left: 3px;
-  top: 50%;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transform: translateY(-50%);
-  transition: left 0.15s;
+.switch .tile {
+  pointer-events: none;
+  transition:
+    filter 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  /* 關：變暗、去掉顏色、往下沉 */
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.45;
+  transform: translateY(2px);
 }
-.switch.on {
-  justify-content: flex-start;
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+.switch.on .tile {
+  /* 開：原本的紅中，浮起來並帶一圈光 */
+  filter: drop-shadow(0 0 6px rgba(179, 38, 30, 0.45));
+  opacity: 1;
+  transform: translateY(-2px);
 }
-.switch.on .switch-knob {
-  left: calc(100% - 25px);
+.switch:hover .tile {
+  opacity: 0.8;
+}
+.switch.on:hover .tile {
+  opacity: 1;
+  transform: translateY(-4px);
+}
+.switch.on .switch-label {
+  color: var(--accent);
 }
 
 /* 共用說明框（TipLayer）：位置由程式計算，保持在畫面內 */
@@ -847,8 +852,50 @@ button:focus-visible {
   height: 32px;
   flex: none;
 }
-.effect-sample .gold-burst-text {
-  font-size: 1.15rem;
+/* 特效圖示（EffectIcon）：裝飾選單裡小小的，商店卡片上大大的 */
+.effect-icon {
+  display: block;
+  height: 24px;
+  width: auto;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.25));
+}
+.effect-icon.icon-whale {
+  width: 36px;
+  height: auto;
+}
+.effect-icon.icon-rainbow {
+  height: 18px;
+}
+.shop-sample .effect-icon {
+  height: 68px;
+  margin-bottom: 14px;
+  transition: transform 0.2s ease;
+}
+.shop-sample .effect-icon.icon-whale {
+  width: 120px;
+  height: auto;
+}
+.shop-sample .effect-icon.icon-rainbow {
+  width: 120px;
+  height: auto;
+}
+.shop-sample:hover .effect-icon {
+  transform: scale(1.1) rotate(-4deg);
+}
+.icon-gold {
+  filter: drop-shadow(0 0 10px rgba(242, 184, 75, 0.7));
+}
+.icon-fire {
+  filter: drop-shadow(0 0 10px rgba(255, 110, 20, 0.7));
+}
+.icon-jade {
+  filter: drop-shadow(0 0 10px rgba(79, 211, 154, 0.6));
+}
+.icon-sakura {
+  filter: drop-shadow(0 0 8px rgba(255, 150, 190, 0.6));
+}
+.icon-thunder {
+  filter: drop-shadow(0 0 10px rgba(255, 220, 60, 0.75));
 }
 
 /* ─────────────────────────── 商店 ─────────────────────────── */
@@ -902,9 +949,6 @@ button:focus-visible {
   cursor: pointer;
   overflow: hidden;
 }
-.shop-sample .gold-burst-text {
-  font-size: 2.6rem;
-}
 .shop-sample-hint {
   position: absolute;
   bottom: 6px;
@@ -922,25 +966,33 @@ button:focus-visible {
   font-size: 1.05rem;
 }
 .shop-acts {
-  display: flex;
-  flex-wrap: wrap;
+  /* 「預覽」＋ 吃碰槓胡四個按鈕固定排成一行（卡片再窄也不換行） */
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  font-size: 0.85rem;
+  gap: 4px;
+  margin-top: 10px;
+}
+.shop-acts-label {
+  font-size: 0.8rem;
   color: var(--muted);
+  white-space: nowrap;
+  padding-right: 2px;
 }
 .shop-acts button {
-  padding: 3px 12px;
+  min-width: 0;
+  padding: 4px 0;
   border: 1.5px solid var(--border);
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 .shop-acts button:hover {
   border-color: var(--accent);
+  color: var(--accent);
 }
 .shop-actions {
   display: flex;

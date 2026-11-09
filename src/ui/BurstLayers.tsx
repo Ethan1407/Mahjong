@@ -219,8 +219,8 @@ function RainbowLayer() {
 // 槓：鯨魚站起來，舉起用那張牌做成的槓鈴（兩邊各兩張，共四張）舉三下。
 // 胡、自摸、台數加倍：鯨魚躍出水面、從噴氣孔噴水。
 
-/** 側面的鯨魚（臉朝右）。嘴巴的下顎（.whale-jaw）可以張開。 */
-function WhaleSide() {
+/** 側面的鯨魚（臉朝右）。嘴巴的下顎（.whale-jaw）可以張開。商店的圖示也用這隻。 */
+export function WhaleSide() {
   return (
     <svg viewBox="0 0 220 130" className="whale-svg">
       <g className="whale-tail">

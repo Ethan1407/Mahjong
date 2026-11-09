@@ -2612,3 +2612,42 @@ span.hint-risk-why {
     animation: none;
   }
 }
+
+/* ─────────────────────────── 檢視對局 ─────────────────────────── */
+/* 對手攤開的手牌：放不下就換行 */
+.revealed-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 100%;
+}
+.seat-top .revealed-hand {
+  justify-content: center;
+}
+.seat-right .revealed-hand {
+  justify-content: flex-end;
+}
+/* 右下角：看結算、下一局（在「遊玩時間」上方） */
+.review-bar {
+  position: fixed;
+  right: 12px;
+  bottom: 52px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--felt-card);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.review-note {
+  font-size: 0.85rem;
+  color: var(--felt-muted);
+}
+.review-actions {
+  display: flex;
+  gap: 8px;
+}

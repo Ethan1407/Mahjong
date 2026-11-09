@@ -2,6 +2,10 @@
  * 輔助功能（可開關的學習輔助）：設定存在瀏覽器裡，開始畫面與牌桌共用。
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { Tile } from './Tile'
+
+/** 開關用的牌：紅中。 */
+const RED_DRAGON = 31
 
 export interface AssistSettings {
   /** 選牌時顯示「打出後幾向聽、進張幾張、最佳打法」。 */
@@ -96,8 +100,10 @@ function AssistSwitch({ option, checked, onChange }: { option: OptionInfo; check
         aria-checked={checked}
         className={`switch${checked ? ' on' : ''}`}
         onClick={() => onChange(!checked)}
+        title={checked ? '點一下關掉' : '點一下打開'}
       >
-        <span className="switch-knob" />
+        {/* 開關是一張紅中：打開時亮起、浮起來；關掉時變暗、變灰 */}
+        <Tile tile={RED_DRAGON} size="md" title="" />
         <span className="switch-label">{checked ? '開' : '關'}</span>
       </button>
     </div>

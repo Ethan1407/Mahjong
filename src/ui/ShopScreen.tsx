@@ -8,16 +8,20 @@ import { useState } from 'react'
 import { EFFECTS, buyEffect, equipEffect, useCosmetics, type EffectId, type EffectInfo } from '../cosmetics'
 import { formatChips, loadWallet } from '../wallet'
 import { DecorMenu } from './DecorMenu'
+import { EffectIcon } from './EffectIcon'
 import { GoldBurst, type BurstAction } from './GoldBurst'
+import './table.css'
 
-/** 鯨魚會依動作表演不同的動畫，預覽時可以分別看。 */
+/** 每種特效都可以分別預覽吃、碰、槓、胡（鯨魚每種動作的表演不同）。 */
 const PREVIEW_ACTIONS: { action: BurstAction; text: string }[] = [
   { action: 'chow', text: '吃' },
   { action: 'pung', text: '碰' },
   { action: 'kong', text: '槓' },
   { action: 'win', text: '胡' },
 ]
-import './table.css'
+
+/** 商店裡依價格由低到高排列（同價格維持原本的順序）。 */
+const BY_PRICE = [...EFFECTS].sort((a, b) => a.price - b.price)
 
 export function ShopScreen({ onBack }: { onBack: () => void }) {
   const cosmetics = useCosmetics()
@@ -68,7 +72,7 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
         <h2 id="shop-effects">吃碰槓胡特效</h2>
         <p className="section-note">你自己吃、碰、槓、胡、自摸（和台數加倍）時的大字特效。機器人的動作維持金光。</p>
         <div className="shop-grid">
-          {EFFECTS.map((item) => {
+          {BY_PRICE.map((item) => {
             const owned = cosmetics.owned.includes(item.id)
             const equipped = cosmetics.effect === item.id
             const affordable = balance - item.price >= 1
@@ -76,11 +80,11 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
               <article key={item.id} className={`shop-card${equipped ? ' equipped' : ''}`}>
                 <button
                   type="button"
-                  className={`shop-sample burst-${item.id}`}
+                  className="shop-sample"
                   onClick={() => play(item.id)}
                   aria-label={`預覽${item.name}特效`}
                 >
-                  <span className="gold-burst-text">碰！</span>
+                  <EffectIcon id={item.id} />
                   <span className="shop-sample-hint">點一下預覽</span>
                 </button>
                 <div className="shop-info">
@@ -89,16 +93,19 @@ export function ShopScreen({ onBack }: { onBack: () => void }) {
                     {equipped && <span className="badge done">使用中</span>}
                   </h3>
                   <p className="option-desc">{item.description}</p>
-                  {item.id === 'whale' && (
-                    <div className="shop-acts" role="group" aria-label="預覽鯨魚的每種動作">
-                      <span>預覽：</span>
-                      {PREVIEW_ACTIONS.map((p) => (
-                        <button key={p.action} type="button" onClick={() => play('whale', p.action, p.text)}>
-                          {p.text}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="shop-acts" role="group" aria-label={`預覽${item.name}的每種動作`}>
+                    <span className="shop-acts-label">預覽</span>
+                    {PREVIEW_ACTIONS.map((p) => (
+                      <button
+                        key={p.action}
+                        type="button"
+                        onClick={() => play(item.id, p.action, p.text)}
+                        aria-label={`預覽${item.name}：${p.text}`}
+                      >
+                        {p.text}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="shop-actions">
                   {owned ? (

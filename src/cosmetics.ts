@@ -31,17 +31,12 @@ export interface EffectInfo {
 
 export const EFFECTS: readonly EffectInfo[] = [
   { id: 'gold', name: '金光', price: 0, description: '經典的金色大字，一開始就有。' },
-  { id: 'fire', name: '烈焰', price: 1_000, description: '畫面下方竄起熊熊火焰，燒大約一秒，還會冒出火星。' },
+  { id: 'fire', name: '烈焰', price: 2_000, description: '畫面下方竄起熊熊火焰，燒大約一秒，還會冒出火星。' },
   { id: 'jade', name: '翡翠', price: 2_000, description: '翡翠綠大字，一顆顆閃亮的寶石從天上掉下來。' },
-  { id: 'sakura', name: '櫻吹雪', price: 3_000, description: '粉紅色大字，大片櫻花瓣左右飄著，慢慢落滿整個畫面。' },
-  { id: 'thunder', name: '雷霆', price: 5_000, description: '金黃電光大字，閃電從天劈下，畫面連閃三下並大力震動。' },
-  {
-    id: 'whale',
-    name: '鯨魚',
-    price: 6_000,
-    description: '可愛的鯨魚依動作表演：吃是張嘴吃掉那張牌、碰是游過去把牌撞飛、槓是舉起麻將槓鈴、胡是躍出水面噴水。',
-  },
-  { id: 'rainbow', name: '彩虹', price: 8_000, description: '七彩流動的大字，一道彩虹從左到右畫過天空再消失。' },
+  { id: 'sakura', name: '櫻吹雪', price: 2_000, description: '粉紅色大字，大片櫻花瓣左右飄著，慢慢落滿整個畫面。' },
+  { id: 'thunder', name: '雷霆', price: 2_000, description: '金黃電光大字，閃電從天劈下，畫面連閃三下並大力震動。' },
+  { id: 'whale', name: '鯨魚', price: 6_000, description: '可愛的鯨魚依動作表演' },
+  { id: 'rainbow', name: '彩虹', price: 2_000, description: '七彩流動的大字，一道彩虹從左到右畫過天空再消失。' },
 ]
 
 export const effectInfo = (id: EffectId) => EFFECTS.find((e) => e.id === id) ?? EFFECTS[0]

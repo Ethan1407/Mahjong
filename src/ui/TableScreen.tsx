@@ -75,9 +75,12 @@ export function TableScreen({
   /** 這一局之後籌碼輸光、自動補充了（結算時告訴你）。 */
   const [refilled, setRefilled] = useState(false)
   const result = round?.result ?? null
+  /** 一局結束後按了「檢視對局」：關掉結算視窗，攤開所有人的手牌。 */
+  const [reviewing, setReviewing] = useState(false)
   useEffect(() => {
     if (!result) {
       setRefilled(false)
+      setReviewing(false)
       return
     }
     if (stake.free) return
@@ -239,6 +242,8 @@ export function TableScreen({
                 match={match}
                 deal={dealProgress}
                 taiOn={assist.taiHints}
+                revealed={reviewing ? round.players[seat].hand : undefined}
+                winTile={reviewing && round.result?.type === 'win' && round.result.winner === seat ? round.result.tile : null}
               />
             )
           })}
@@ -269,7 +274,7 @@ export function TableScreen({
         </div>
       </div>
 
-      {round.result && (
+      {round.result && !reviewing && (
         <ResultDialog
           result={round.result}
           round={round}
@@ -277,7 +282,21 @@ export function TableScreen({
           refilled={refilled}
           onNext={next}
           onLeave={onExit}
+          onReview={() => setReviewing(true)}
         />
+      )}
+      {round.result && reviewing && (
+        <div className="review-bar" role="region" aria-label="檢視對局">
+          <span className="review-note">檢視對局：所有人的手牌都攤開了</span>
+          <div className="review-actions">
+            <button type="button" className="action" onClick={() => setReviewing(false)}>
+              看結算
+            </button>
+            <button type="button" className="action primary" onClick={next} autoFocus>
+              下一局 →
+            </button>
+          </div>
+        </div>
       )}
       <PlayClock seconds={playTime.seconds} paused={playTime.paused} />
       {burst && <GoldBurst key={burst.key} text={burst.text} sub={burst.sub} effect={burst.effect} action="win" onDone={endBurst} />}
@@ -488,12 +507,18 @@ function OpponentArea({
   match,
   deal,
   taiOn,
+  revealed,
+  winTile = null,
 }: {
   sv: SeatView
   view: PlayerView
   match: MatchState
   deal: number | null
   taiOn: boolean
+  /** 檢視對局時攤開的手牌（平常看不到，為 undefined）。 */
+  revealed?: TileId[]
+  /** 他胡牌時胡的那張（攤牌時標出來）。 */
+  winTile?: TileId | null
 }) {
   const pos = REL_POS[rel(sv.seat)]
   const who = seatName(sv.seat)
@@ -510,9 +535,17 @@ function OpponentArea({
   return (
     <section className={`seat-area seat-${pos}`} aria-label={who}>
       <SeatBadge sv={sv} view={view} match={match} />
-      <div className="hand-count">
-        <Tile back size="xs" /> × {dealtCount(sv.handCount, deal)}
-      </div>
+      {revealed ? (
+        <div className="revealed-hand" aria-label={`${who}的手牌`}>
+          {revealed.map((t, i) => (
+            <Tile key={i} tile={t} size="xs" highlight={winTile !== null && t === winTile && i === revealed.lastIndexOf(t)} />
+          ))}
+        </div>
+      ) : (
+        <div className="hand-count">
+          <Tile back size="xs" /> × {dealtCount(sv.handCount, deal)}
+        </div>
+      )}
       {dealingDone && <Melds sv={sv} size="xs" meldTips={meldTips} flowerTips={flowerTips} />}
     </section>
   )
@@ -861,6 +894,7 @@ function ResultDialog({
   refilled,
   onNext,
   onLeave,
+  onReview,
 }: {
   result: RoundResult
   round: RoundState
@@ -869,6 +903,8 @@ function ResultDialog({
   onNext: () => void
   /** 一局結束後可以直接離開（不扣入場費）。 */
   onLeave: () => void
+  /** 關掉結算視窗，回到牌桌看剛剛那一局（所有人的牌都攤開）。 */
+  onReview: () => void
 }) {
   return (
     <div className="dialog-backdrop">
@@ -897,6 +933,9 @@ function ResultDialog({
         <div className="dialog-actions">
           <button type="button" className="action" onClick={onLeave}>
             離開對局
+          </button>
+          <button type="button" className="action" onClick={onReview}>
+            檢視對局
           </button>
           <button type="button" className="action primary" onClick={onNext} autoFocus>
             下一局
@@ -935,7 +974,13 @@ function WinDetail({ result, round }: { result: Extract<RoundResult, { type: 'wi
             <Tile key={k} tile={t} size="sm" highlight={t === result.tile && k === winner.hand.lastIndexOf(t)} />
           ))}
         </span>
-        {winner.flowers.length > 0 && <TileRow tiles={winner.flowers} size="xs" />}
+        {winner.flowers.length > 0 && (
+          <span className="meld">
+            {winner.flowers.map((f) => (
+              <Tile key={f} tile={f} size="sm" />
+            ))}
+          </span>
+        )}
       </div>
       <table className="tai-table">
         <tbody>
